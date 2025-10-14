@@ -1,0 +1,44 @@
+# Staging environment configuration
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/paymentreconciliation_staging?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME:staginguser}
+    password: ${DB_PASSWORD:stagingpassword}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      connection-timeout: 20000
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+logging:
+  level:
+    "[com.example.paymentreconciliation]": INFO
+    "[org.hibernate.SQL]": INFO
+    root: INFO
+  file:
+    name: logs/payment-reconciliation-staging.log
+
+file:
+  upload:
+    base-dir: ${FILE_UPLOAD_DIR:/app/uploads/staging/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,env
+
+# Auditing toggle
+auditing:
+  enabled: true
+
+server:
+  port: ${SERVER_PORT:8080}

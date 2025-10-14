@@ -1,0 +1,115 @@
+# Production environment configuration for Azure Container Apps with Azure MySQL Flexible Server
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:mysql://paymentreconciliation.mysql.database.azure.com:3306/paymentreconciliation_prod?useSSL=true&requireSSL=true&sslMode=REQUIRED&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8&useUnicode=true}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 30000
+      max-lifetime: 1200000
+      leak-detection-threshold: 60000
+      connection-test-query: SELECT 1
+      auto-commit: false
+  jpa:
+    hibernate:
+      ddl-auto: validate  # Don't auto-create tables in prod
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        "[format_sql]": false
+        jdbc:
+          "[batch_size]": 25
+        "[order_inserts]": true
+        "[order_updates]": true
+        connection:
+          "[provider_disables_autocommit]": true
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: NON_NULL
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+# Auditing toggle
+auditing:
+  enabled: true
+
+logging:
+  level:
+    "[com.example.paymentreconciliation]": INFO
+    "[org.hibernate.SQL]": WARN
+    "[org.springframework.web]": WARN
+    root: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [%logger{36}] - %msg%n"
+  file:
+    name: ${LOG_FILE:/tmp/logs/payment-reconciliation.log}
+    max-size: 100MB
+    max-history: 7
+
+# Azure Container Apps ephemeral storage configuration
+file:
+  upload:
+    base-dir: ${FILE_UPLOAD_DIR:/tmp/uploads}
+
+# MT940 statements path for Azure Container Apps ephemeral storage
+mt940:
+  statements:
+    path: ${MT940_STATEMENTS_PATH:/tmp/mt940-statements/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: prod
+
+server:
+  port: ${SERVER_PORT:8080}
+  compression:
+    enabled: true
+    mime-types: text/html,text/xml,text/plain,text/css,text/javascript,application/javascript,application/json
+    min-response-size: 1024
+  http2:
+    enabled: true
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 100  # Reduced for container environment
+      min-spare: 5
+    max-connections: 2048  # Reduced for container environment
+    accept-count: 50
+    connection-timeout: 20000
+    max-http-form-post-size: 200MB
+  forward-headers-strategy: framework  # For Azure Container Apps load balancer

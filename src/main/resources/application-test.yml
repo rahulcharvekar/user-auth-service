@@ -1,0 +1,4 @@
+
+# Auditing toggle
+auditing:
+  enabled: true

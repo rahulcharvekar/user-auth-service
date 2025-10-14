@@ -1,0 +1,43 @@
+# MT940 file ingestion configuration
+mt940:
+  base-dir: mt940/
+  inbox-dir: mt940/inbox/
+  processing-dir: mt940/processing/
+  archive-dir: mt940/archive/
+  quarantine-dir: mt940/quarantine/
+# Common configuration for all environments
+spring:
+  application:
+    name: payment-reconciliation
+  profiles:
+    active: dev
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        "[format_sql]": true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    "[com.example.paymentreconciliation]": INFO
+
+file:
+  upload:
+    base-dir: uploads/
+
+# JWT Configuration
+app:
+  jwt:
+    secret: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+    expiration: 86400
+
+# Auditing toggle
+auditing:
+  enabled: true

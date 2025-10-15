@@ -8,11 +8,13 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import jakarta.servlet.http.HttpServletRequest;
-import com.example.userauth.utils.ETagUtil;
+import com.shared.common.util.ETagUtil;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+
+import com.shared.common.annotation.Auditable;
 
 /**
  * Controller for authorization and service catalog endpoints
@@ -44,6 +46,7 @@ public class AuthorizationController {
      * @param authentication The authenticated user
      * @return Authorization data including roles, permissions (can), pages, and endpoints
      */
+    @Auditable(action = "GET_USER_AUTHORIZATIONS", resourceType = "AUTHORIZATION")
     @GetMapping("/me/authorizations")
     @Operation(
             summary = "Get user authorizations",
@@ -68,6 +71,7 @@ public class AuthorizationController {
      * 
      * @return Service catalog with endpoints and pages
      */
+    @Auditable(action = "GET_SERVICE_CATALOG", resourceType = "CATALOG")
     @GetMapping("/meta/service-catalog")
     @Operation(
             summary = "Get service catalog",
@@ -89,6 +93,7 @@ public class AuthorizationController {
      * 
      * @return Map of module -> endpoints
      */
+    @Auditable(action = "GET_ENDPOINTS_CATALOG", resourceType = "CATALOG")
     @GetMapping("/meta/endpoints")
     @Operation(
             summary = "Get endpoints catalog",
@@ -124,6 +129,7 @@ public class AuthorizationController {
      * 
      * @return Hierarchical list of UI pages
      */
+    @Auditable(action = "GET_PAGES_CATALOG", resourceType = "CATALOG")
     @GetMapping("/meta/pages")
     @Operation(
             summary = "Get pages catalog",

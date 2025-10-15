@@ -7,7 +7,6 @@
 package com.example.userauth.entity;
 
 import jakarta.persistence.*;
-import com.example.userauth.entity.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

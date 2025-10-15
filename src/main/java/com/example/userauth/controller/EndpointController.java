@@ -9,11 +9,11 @@ import com.example.userauth.repository.PolicyRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import jakarta.servlet.http.HttpServletRequest;
-import com.example.userauth.utils.ETagUtil;
+import com.shared.common.util.ETagUtil;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
-import com.example.userauth.audit.annotation.Audited;
+import com.shared.common.annotation.Auditable;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +60,7 @@ public class EndpointController {
         /**
      * Get all endpoints with their policies
      */
+    @Auditable(action = "GET_ALL_ENDPOINTS", resourceType = "ENDPOINT")
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
@@ -85,6 +86,7 @@ public class EndpointController {
     /**
      * Get endpoint by ID with policies
      */
+    @Auditable(action = "GET_ENDPOINT_BY_ID", resourceType = "ENDPOINT")
     @GetMapping("/{id}")
     @SuppressWarnings("unchecked")
     @Transactional(readOnly = true)
@@ -113,7 +115,7 @@ public class EndpointController {
      */
     @PostMapping
     @Transactional
-    @Audited(action = "CREATE_ENDPOINT", resourceType = "ENDPOINT")
+    @Auditable(action = "CREATE_ENDPOINT", resourceType = "ENDPOINT")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> createEndpoint(@RequestBody EndpointRequest request) {
         Endpoint endpoint = new Endpoint(
@@ -139,7 +141,7 @@ public class EndpointController {
      */
     @PutMapping("/{id}")
     @Transactional
-    @Audited(action = "UPDATE_ENDPOINT", resourceType = "ENDPOINT")
+    @Auditable(action = "UPDATE_ENDPOINT", resourceType = "ENDPOINT")
     public ResponseEntity<Map<String, Object>> updateEndpoint(
             @PathVariable Long id,
             @RequestBody EndpointRequest request) {
@@ -174,7 +176,7 @@ public class EndpointController {
      */
     @DeleteMapping("/{id}")
     @Transactional
-    @Audited(action = "DELETE_ENDPOINT", resourceType = "ENDPOINT")
+    @Auditable(action = "DELETE_ENDPOINT", resourceType = "ENDPOINT")
     public ResponseEntity<Void> deleteEndpoint(@PathVariable Long id) {
         if (endpointRepository.existsById(id)) {
             // Delete endpoint policies first
@@ -190,7 +192,7 @@ public class EndpointController {
      * Toggle endpoint active status
      */
     @PatchMapping("/{id}/toggle-active")
-    @Audited(action = "TOGGLE_ENDPOINT_ACTIVE", resourceType = "ENDPOINT")
+    @Auditable(action = "TOGGLE_ENDPOINT_ACTIVE", resourceType = "ENDPOINT")
     public ResponseEntity<Map<String, Object>> toggleActive(@PathVariable Long id) {
         return endpointRepository.findById(id)
                 .map(endpoint -> {
@@ -230,7 +232,7 @@ public class EndpointController {
      */
     @PostMapping("/{id}/policies")
     @Transactional
-    @Audited(action = "ASSIGN_POLICIES_TO_ENDPOINT", resourceType = "ENDPOINT")
+    @Auditable(action = "ASSIGN_POLICIES_TO_ENDPOINT", resourceType = "ENDPOINT")
     public ResponseEntity<Map<String, Object>> assignPoliciesToEndpoint(
             @PathVariable Long id,
             @RequestBody PolicyAssignmentRequest request) {
@@ -249,7 +251,7 @@ public class EndpointController {
      */
     @DeleteMapping("/{id}/policies/{policyId}")
     @Transactional
-    @Audited(action = "REMOVE_POLICY_FROM_ENDPOINT", resourceType = "ENDPOINT")
+    @Auditable(action = "REMOVE_POLICY_FROM_ENDPOINT", resourceType = "ENDPOINT")
     public ResponseEntity<Void> removePolicyFromEndpoint(
             @PathVariable Long id,
             @PathVariable Long policyId) {

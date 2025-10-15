@@ -9,7 +9,7 @@ import com.example.userauth.repository.PolicyRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import jakarta.servlet.http.HttpServletRequest;
-import com.example.userauth.utils.ETagUtil;
+import com.shared.common.util.ETagUtil;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -25,6 +25,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import com.shared.common.annotation.Auditable;
 
 /**
  * Admin controller for managing policies and their capability assignments
@@ -56,6 +58,7 @@ public class PolicyController {
     /**
      * Get all policies with their capabilities
      */
+    @Auditable(action = "GET_ALL_POLICIES", resourceType = "POLICY")
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getAllPolicies(HttpServletRequest request) {
         List<Policy> policies = policyRepository.findAll();

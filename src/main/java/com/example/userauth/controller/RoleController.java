@@ -11,13 +11,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import jakarta.servlet.http.HttpServletRequest;
-import com.example.userauth.utils.ETagUtil;
+import com.shared.common.util.ETagUtil;
 import org.springframework.web.bind.annotation.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+
+import com.shared.common.annotation.Auditable;
 
 /**
  * Admin controller for managing roles
@@ -36,6 +38,7 @@ public class RoleController {
     @Autowired
     private ObjectMapper objectMapper;
     
+    @Auditable(action = "GET_ALL_ROLES", resourceType = "ROLE")
     @GetMapping
     @Operation(summary = "Get all roles")
     public ResponseEntity<List<Role>> getAllRoles(HttpServletRequest request) {

@@ -41,6 +41,7 @@ public class EnhancedSecurityConfig {
         http
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
+            .httpBasic(httpBasic -> httpBasic.disable())
             .exceptionHandling(exception -> exception
                 .authenticationEntryPoint(unauthorizedHandler)
             )

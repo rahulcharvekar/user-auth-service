@@ -5,7 +5,7 @@ import com.example.userauth.repository.CapabilityRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import jakarta.servlet.http.HttpServletRequest;
-import com.example.userauth.utils.ETagUtil;
+import com.shared.common.util.ETagUtil;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 
@@ -16,6 +16,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+
+import com.shared.common.annotation.Auditable;
 
 /**
  * Admin controller for managing capabilities
@@ -40,6 +42,7 @@ public class CapabilityController {
     /**
      * Get all capabilities
      */
+    @Auditable(action = "GET_ALL_CAPABILITIES", resourceType = "CAPABILITY")
     @GetMapping
     public ResponseEntity<List<Capability>> getAllCapabilities(HttpServletRequest request) {
         List<Capability> capabilities = capabilityRepository.findAll();
@@ -60,6 +63,7 @@ public class CapabilityController {
     /**
      * Get capability by ID
      */
+    @Auditable(action = "GET_CAPABILITY_BY_ID", resourceType = "CAPABILITY")
         @GetMapping("/{id}")
     @SuppressWarnings("unchecked")
     public ResponseEntity<Capability> getCapabilityById(@PathVariable Long id, HttpServletRequest request) {
@@ -84,6 +88,7 @@ public class CapabilityController {
     /**
      * Create new capability
      */
+    @Auditable(action = "CREATE_CAPABILITY", resourceType = "CAPABILITY")
     @PostMapping
     public ResponseEntity<Capability> createCapability(@RequestBody CapabilityRequest request) {
         Capability capability = new Capability(
@@ -100,6 +105,7 @@ public class CapabilityController {
     /**
      * Update capability
      */
+    @Auditable(action = "UPDATE_CAPABILITY", resourceType = "CAPABILITY")
     @PutMapping("/{id}")
     public ResponseEntity<Capability> updateCapability(
             @PathVariable Long id,
@@ -122,6 +128,7 @@ public class CapabilityController {
     /**
      * Delete capability
      */
+    @Auditable(action = "DELETE_CAPABILITY", resourceType = "CAPABILITY")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCapability(@PathVariable Long id) {
         if (capabilityRepository.existsById(id)) {
@@ -134,6 +141,7 @@ public class CapabilityController {
     /**
      * Activate/Deactivate capability
      */
+    @Auditable(action = "TOGGLE_CAPABILITY_ACTIVE", resourceType = "CAPABILITY")
     @PatchMapping("/{id}/toggle-active")
     public ResponseEntity<Capability> toggleActive(@PathVariable Long id) {
         return capabilityRepository.findById(id)

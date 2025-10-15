@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.shared.common.annotation.Auditable;
+
 /**
  * Admin controller for managing page actions
  * Only accessible by ADMIN role
@@ -48,6 +50,7 @@ public class PageActionController {
     /**
      * Get all page actions
      */
+    @Auditable(action = "GET_ALL_PAGE_ACTIONS", resourceType = "PAGE_ACTION")
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getAllPageActions() {
         List<PageAction> actions = pageActionRepository.findAll();
@@ -60,6 +63,7 @@ public class PageActionController {
     /**
      * Get page action by ID
      */
+    @Auditable(action = "GET_PAGE_ACTION_BY_ID", resourceType = "PAGE_ACTION")
     @GetMapping("/{id}")
     public ResponseEntity<Map<String, Object>> getPageActionById(@PathVariable Long id) {
         return pageActionRepository.findById(id)
@@ -70,6 +74,7 @@ public class PageActionController {
     /**
      * Get actions for a specific page
      */
+    @Auditable(action = "GET_ACTIONS_FOR_PAGE", resourceType = "PAGE_ACTION")
     @GetMapping("/page/{pageId}")
     public ResponseEntity<List<Map<String, Object>>> getActionsForPage(@PathVariable Long pageId) {
         List<PageAction> actions = pageActionRepository.findByPageIdAndIsActiveTrue(pageId);
@@ -82,6 +87,7 @@ public class PageActionController {
     /**
      * Create new page action
      */
+    @Auditable(action = "CREATE_PAGE_ACTION", resourceType = "PAGE_ACTION")
     @PostMapping
     @Transactional
     public ResponseEntity<Map<String, Object>> createPageAction(@RequestBody PageActionRequest request) {
@@ -118,6 +124,7 @@ public class PageActionController {
     /**
      * Update page action
      */
+    @Auditable(action = "UPDATE_PAGE_ACTION", resourceType = "PAGE_ACTION")
     @PutMapping("/{id}")
     @Transactional
     public ResponseEntity<Map<String, Object>> updatePageAction(
@@ -165,6 +172,7 @@ public class PageActionController {
     /**
      * Delete page action
      */
+    @Auditable(action = "DELETE_PAGE_ACTION", resourceType = "PAGE_ACTION")
     @DeleteMapping("/{id}")
     @Transactional
     public ResponseEntity<Void> deletePageAction(@PathVariable Long id) {
@@ -178,6 +186,7 @@ public class PageActionController {
     /**
      * Toggle page action active status
      */
+    @Auditable(action = "TOGGLE_PAGE_ACTION_ACTIVE", resourceType = "PAGE_ACTION")
     @PatchMapping("/{id}/toggle-active")
     public ResponseEntity<Map<String, Object>> toggleActive(@PathVariable Long id) {
         return pageActionRepository.findById(id)
@@ -192,6 +201,7 @@ public class PageActionController {
     /**
      * Reorder page action
      */
+    @Auditable(action = "REORDER_PAGE_ACTION", resourceType = "PAGE_ACTION")
     @PatchMapping("/{id}/reorder")
     @Transactional
     public ResponseEntity<Map<String, Object>> reorderPageAction(

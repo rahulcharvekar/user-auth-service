@@ -18,11 +18,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import jakarta.servlet.http.HttpServletRequest;
-import com.example.userauth.utils.ETagUtil;
+import com.shared.common.util.ETagUtil;
 import org.springframework.web.bind.annotation.*;
 
 
-import com.example.userauth.audit.annotation.Audited;
+import com.shared.common.annotation.Auditable;
 import java.util.List;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
@@ -48,7 +48,7 @@ public class AuthController {
     private ObjectMapper objectMapper;
     
     @PostMapping("/login")
-    @Audited(action = "LOGIN_ATTEMPT", resourceType = "USER")
+    @Auditable(action = "LOGIN_ATTEMPT", resourceType = "USER")
     @Operation(summary = "User login", description = "Authenticate user and return JWT token")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "200", description = "Login successful"),
@@ -68,7 +68,7 @@ public class AuthController {
     }
     
     @PostMapping("/register")
-    @Audited(action = "REGISTER_ATTEMPT", resourceType = "USER")
+    @Auditable(action = "REGISTER_ATTEMPT", resourceType = "USER")
     @Operation(summary = "User registration", description = "Register a new user account")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "201", description = "Registration successful"),
@@ -87,6 +87,7 @@ public class AuthController {
     }
     
     
+    @Auditable(action = "GET_UI_CONFIG", resourceType = "USER")
     @GetMapping("/ui-config")
     @Operation(summary = "Get UI configuration", description = "Get complete UI configuration including navigation and permissions for current user")
     @ApiResponse(responseCode = "200", description = "UI configuration retrieved successfully")
@@ -117,7 +118,7 @@ public class AuthController {
     @Operation(summary = "Get all users", description = "Get list of all users (Requires authentication)")
     @ApiResponse(responseCode = "200", description = "Users retrieved successfully")
     @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
-    @Audited(action = "GET_ALL_USERS", resourceType = "USER")
+    @Auditable(action = "GET_ALL_USERS", resourceType = "USER")
     public ResponseEntity<List<User>> getAllUsers(HttpServletRequest request) {
         List<User> users = authService.getAllUsers();
         try {
@@ -134,6 +135,7 @@ public class AuthController {
         }
     }
     
+    @Auditable(action = "GET_USERS_BY_ROLE", resourceType = "USER")
     @GetMapping("/users/role/{role}")
     @Operation(summary = "Get users by role", description = "Get users filtered by role (Requires authentication)")
     @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
@@ -155,6 +157,7 @@ public class AuthController {
         }
     }
     
+    @Auditable(action = "UPDATE_USER_STATUS", resourceType = "USER")
     @PutMapping("/users/{userId}/status")
     @Operation(summary = "Update user status", description = "Enable or disable user account (Requires authentication)")
     @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
@@ -175,6 +178,7 @@ public class AuthController {
         }
     }
     
+    @Auditable(action = "UPDATE_USER_ROLES", resourceType = "USER")
     @PutMapping("/users/{userId}/roles")
     @Operation(summary = "Update user roles", description = "Update user's roles and invalidate existing tokens (Requires authentication)")
     @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
@@ -194,6 +198,7 @@ public class AuthController {
         }
     }
     
+    @Auditable(action = "INVALIDATE_USER_TOKENS", resourceType = "USER")
     @PostMapping("/users/{userId}/invalidate-tokens")
     @Operation(summary = "Invalidate user tokens", description = "Manually invalidate all JWT tokens for a user (Requires authentication)")
     @io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "Bearer Authentication")
@@ -212,6 +217,7 @@ public class AuthController {
         }
     }
     
+    @Auditable(action = "GET_AVAILABLE_ROLES", resourceType = "ROLE")
     @GetMapping("/roles")
     @Operation(summary = "Get available roles", description = "Get list of available user roles")
     public ResponseEntity<UserRole[]> getAvailableRoles(HttpServletRequest request) {

@@ -32,5 +32,9 @@ management:
         include: health,info,beans,env,metrics,loggers
 
 # Auditing toggle
-auditing:
-  enabled: false
+audit:
+  enabled: true
+  hashing-algorithm: SHA-256  # Optional: default is SHA-256
+
+server:
+  port: 8080

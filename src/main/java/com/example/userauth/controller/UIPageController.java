@@ -1,6 +1,6 @@
 package com.example.userauth.controller;
 
-import com.example.userauth.audit.annotation.Audited;
+import com.shared.common.annotation.Auditable;
 import com.example.userauth.entity.UIPage;
 import com.example.userauth.repository.UIPageRepository;
 
@@ -45,6 +45,7 @@ public class UIPageController {
     /**
      * Get all pages with hierarchy
      */
+    @Auditable(action = "GET_ALL_UI_PAGES", resourceType = "UI_PAGE")
     @GetMapping
     public ResponseEntity<Map<String, Object>> getAllPages() {
         List<UIPage> pages = uiPageRepository.findByIsActiveTrueOrderByDisplayOrderAsc();
@@ -99,7 +100,7 @@ public class UIPageController {
      */
     @PostMapping
     @Transactional
-    @Audited(action = "CREATE_UI_PAGE", resourceType = "UI_PAGE")
+    @Auditable(action = "CREATE_UI_PAGE", resourceType = "UI_PAGE")
     public ResponseEntity<Map<String, Object>> createPage(@RequestBody PageRequest request) {
         // Validate parent if provided
         if (request.getParentId() != null && request.getParentId() != 0) {
@@ -136,7 +137,7 @@ public class UIPageController {
      */
     @PutMapping("/{id}")
     @Transactional
-    @Audited(action = "UPDATE_UI_PAGE", resourceType = "UI_PAGE")
+    @Auditable(action = "UPDATE_UI_PAGE", resourceType = "UI_PAGE")
     @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> updatePage(
             @PathVariable Long id,
@@ -180,7 +181,7 @@ public class UIPageController {
      */
     @DeleteMapping("/{id}")
     @Transactional
-    @Audited(action = "DELETE_UI_PAGE", resourceType = "UI_PAGE")
+    @Auditable(action = "DELETE_UI_PAGE", resourceType = "UI_PAGE")
     public ResponseEntity<Void> deletePage(@PathVariable Long id) {
         if (uiPageRepository.existsById(id)) {
             // Check if page has children
@@ -203,7 +204,7 @@ public class UIPageController {
      * Toggle page active status
      */
     @PatchMapping("/{id}/toggle-active")
-    @Audited(action = "TOGGLE_UI_PAGE_ACTIVE", resourceType = "UI_PAGE")
+    @Auditable(action = "TOGGLE_UI_PAGE_ACTIVE", resourceType = "UI_PAGE")
     @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> toggleActive(@PathVariable Long id) {
         return uiPageRepository.findById(id)
@@ -227,7 +228,7 @@ public class UIPageController {
      */
     @PatchMapping("/{id}/reorder")
     @Transactional
-    @Audited(action = "REORDER_UI_PAGE", resourceType = "UI_PAGE")
+    @Auditable(action = "REORDER_UI_PAGE", resourceType = "UI_PAGE")
     @SuppressWarnings("unchecked")
     public ResponseEntity<Map<String, Object>> reorderPage(
             @PathVariable Long id,

@@ -3,3 +3,7 @@ target/
 *.iml
 .idea/
 .DS_Store
+logs/
+*.class
+*.jar
+.vscode/

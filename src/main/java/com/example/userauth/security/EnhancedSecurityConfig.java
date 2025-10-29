@@ -55,7 +55,8 @@ public class EnhancedSecurityConfig {
                 // Public endpoints
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/public/**").permitAll()
-                
+                .requestMatchers("/internal/auth/**").permitAll()
+
                 // Temporarily allow admin/roles endpoints without authentication for testing
                 .requestMatchers("/api/admin/roles/**").permitAll()
                 

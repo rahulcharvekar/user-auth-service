@@ -68,8 +68,17 @@ public class AuthService {
         
         logger.info("User {} logged in successfully", user.getUsername());
         
-        return new AuthResponse(jwt, user.getId(), user.getUsername(), 
-                               user.getEmail(), user.getFullName(), user.getRole());
+        return new AuthResponse(
+            jwt,
+            user.getId(),
+            user.getUsername(),
+            user.getEmail(),
+            user.getFullName(),
+            user.getRole(),
+            jwtUtils.getTokenId(jwt),
+            user.getPermissionVersion(),
+            jwtUtils.getExpirationInstant(jwt)
+        );
     }
     
     public AuthResponse register(RegisterRequest registerRequest) {
@@ -106,8 +115,17 @@ public class AuthService {
         // Generate JWT token with user's permission version (auto-sourced from User entity)
         String jwt = jwtUtils.generateJwtToken(authentication);
         
-        return new AuthResponse(jwt, user.getId(), user.getUsername(), 
-                               user.getEmail(), user.getFullName(), user.getRole());
+        return new AuthResponse(
+            jwt,
+            user.getId(),
+            user.getUsername(),
+            user.getEmail(),
+            user.getFullName(),
+            user.getRole(),
+            jwtUtils.getTokenId(jwt),
+            user.getPermissionVersion(),
+            jwtUtils.getExpirationInstant(jwt)
+        );
     }
     
     public Optional<User> getCurrentUser() {
@@ -154,7 +172,11 @@ public class AuthService {
     public void updateUserStatus(Long userId, boolean enabled) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
+        boolean previousStatus = user.isEnabled();
         user.setEnabled(enabled);
+        if (previousStatus != enabled) {
+            user.incrementPermissionVersion();
+        }
         userRepository.save(user);
         logger.info("User {} status updated to: {}", user.getUsername(), enabled ? "enabled" : "disabled");
     }
@@ -167,7 +189,7 @@ public class AuthService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found"));
         
-        // Save user to trigger update timestamp
+        user.incrementPermissionVersion();
         userRepository.save(user);
         
         logger.info("User {} permissions updated", user.getUsername());

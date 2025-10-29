@@ -36,8 +36,20 @@ file:
 app:
   jwt:
     secret: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+    issuer: user-auth-service
+    audience: payment-services
     expiration: 86400
 
 # Auditing toggle
 auditing:
   enabled: true
+
+shared-lib:
+  security:
+    introspection:
+      api-key: ${INTERNAL_API_KEY:}
+      api-key-header: X-Internal-Api-Key
+
+auth:
+  internal:
+    api-key-header: X-Internal-Api-Key

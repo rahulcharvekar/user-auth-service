@@ -186,23 +186,13 @@ public class User implements UserDetails {
     public void addRole(Role role) {
         this.roles.add(role);
         role.getUsers().add(this);
-        // Increment permissionVersion when roles change
-        if (this.permissionVersion == null) {
-            this.permissionVersion = 1;
-        } else {
-            this.permissionVersion++;
-        }
+        incrementPermissionVersion();
     }
     
     public void removeRole(Role role) {
         this.roles.remove(role);
         role.getUsers().remove(this);
-        // Increment permissionVersion when roles change
-        if (this.permissionVersion == null) {
-            this.permissionVersion = 1;
-        } else {
-            this.permissionVersion++;
-        }
+        incrementPermissionVersion();
     }
     
     // Main role methods
@@ -261,9 +251,18 @@ public class User implements UserDetails {
     public Integer getPermissionVersion() {
         return permissionVersion;
     }
-
+    
     public void setPermissionVersion(Integer permissionVersion) {
         this.permissionVersion = permissionVersion;
+    }
+
+    public void incrementPermissionVersion() {
+        if (this.permissionVersion == null || this.permissionVersion < 1) {
+            this.permissionVersion = 1;
+        } else {
+            this.permissionVersion++;
+        }
+        this.updatedAt = LocalDateTime.now();
     }
     
     @PreUpdate

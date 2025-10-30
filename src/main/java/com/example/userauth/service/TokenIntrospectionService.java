@@ -20,10 +20,14 @@ public class TokenIntrospectionService {
 
     private final JwtUtils jwtUtils;
     private final UserRepository userRepository;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public TokenIntrospectionService(JwtUtils jwtUtils, UserRepository userRepository) {
+    public TokenIntrospectionService(JwtUtils jwtUtils,
+                                     UserRepository userRepository,
+                                     TokenBlacklistService tokenBlacklistService) {
         this.jwtUtils = jwtUtils;
         this.userRepository = userRepository;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     public TokenIntrospectionResponse introspect(String token) throws JwtException {
@@ -34,6 +38,14 @@ public class TokenIntrospectionService {
         response.setTokenId(claims.getId());
         if (claims.getExpiration() != null) {
             response.setExpiresAt(claims.getExpiration().toInstant());
+        }
+
+        String tokenId = claims.getId();
+
+        if (tokenBlacklistService.isTokenRevoked(tokenId)) {
+            log.debug("Introspection inactive because token {} is revoked", tokenId);
+            response.setActive(false);
+            return response;
         }
 
         Long tokenUserId = claims.get(JwtUtils.CLAIM_USER_ID, Long.class);

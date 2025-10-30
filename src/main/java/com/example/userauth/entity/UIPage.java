@@ -3,15 +3,23 @@ package com.example.userauth.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.shared.entityaudit.annotation.EntityAuditEnabled;
+import com.shared.entityaudit.descriptor.AbstractAuditableEntity;
+import com.shared.entityaudit.listener.SharedEntityAuditListener;
 
 /**
  * Represents a UI page/route in the application.
  * Defines pages available in the frontend navigation.
  */
 @Entity
+@EntityAuditEnabled
+@EntityListeners(SharedEntityAuditListener.class)
 @Table(name = "ui_pages")
-public class UIPage {
+public class UIPage extends AbstractAuditableEntity<Long> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -192,6 +200,37 @@ public class UIPage {
 
     public void setPageActions(Set<PageAction> pageActions) {
         this.pageActions = pageActions;
+    }
+
+    @Override
+    public String entityType() {
+        return "UI_PAGE";
+    }
+
+    @Override
+    public String entityId() {
+        return id != null ? id.toString() : null;
+    }
+
+    @Override
+    @JsonIgnore
+    @Transient
+    public Map<String, Object> auditState() {
+        return auditStateOf(
+                "id", id,
+                "key", key,
+                "label", label,
+                "route", route,
+                "icon", icon,
+                "module", module,
+                "parentId", parentId,
+                "displayOrder", displayOrder,
+                "isMenuItem", isMenuItem,
+                "isActive", isActive,
+                "requiredCapability", requiredCapability,
+                "createdAt", createdAt != null ? createdAt.toString() : null,
+                "updatedAt", updatedAt != null ? updatedAt.toString() : null
+        );
     }
 
     @Override

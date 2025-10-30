@@ -1,10 +1,15 @@
 package com.example.userauth.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.shared.entityaudit.annotation.EntityAuditEnabled;
+import com.shared.entityaudit.descriptor.AbstractAuditableEntity;
+import com.shared.entityaudit.listener.SharedEntityAuditListener;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -13,8 +18,10 @@ import java.util.Set;
  * This replaces the old role_permissions system.
  */
 @Entity
+@EntityAuditEnabled
+@EntityListeners(SharedEntityAuditListener.class)
 @Table(name = "roles")
-public class Role {
+public class Role extends AbstractAuditableEntity<Long> {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -40,11 +47,11 @@ public class Role {
     
     // Many-to-Many relationship with User through user_roles table
     @ManyToMany(mappedBy = "roles", fetch = FetchType.LAZY)
+    @JsonIgnore // prevent infinite recursion during serialization
     private Set<User> users = new HashSet<>();
     
     // Constructors
     public Role() {
-        this.createdAt = LocalDateTime.now();
         this.isActive = true;
     }
     
@@ -122,6 +129,18 @@ public class Role {
         user.getRoles().remove(this);
     }
     
+    @PrePersist
+    protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = now;
+        }
+        updatedAt = now;
+        if (isActive == null) {
+            isActive = true;
+        }
+    }
+    
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
@@ -147,5 +166,24 @@ public class Role {
     @Override
     public int hashCode() {
         return name != null ? name.hashCode() : 0;
+    }
+
+    @Override
+    public String entityType() {
+        return "ROLE";
+    }
+
+    @Override
+    @JsonIgnore
+    @Transient
+    public Map<String, Object> auditState() {
+        return auditStateOf(
+                "id", id,
+                "name", name,
+                "description", description,
+                "isActive", isActive,
+                "createdAt", createdAt != null ? createdAt.toString() : null,
+                "updatedAt", updatedAt != null ? updatedAt.toString() : null
+        );
     }
 }

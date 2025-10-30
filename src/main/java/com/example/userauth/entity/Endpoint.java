@@ -3,15 +3,25 @@ package com.example.userauth.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.shared.entityaudit.annotation.EntityAuditEnabled;
+import com.shared.entityaudit.descriptor.AbstractAuditableEntity;
+import com.shared.entityaudit.listener.SharedEntityAuditListener;
 
 /**
  * Represents a service catalog endpoint (API endpoint).
  * Defines WHERE authorization is enforced and maps to policies.
  */
 @Entity
+@EntityAuditEnabled
+@EntityListeners(SharedEntityAuditListener.class)
 @Table(name = "endpoints")
-public class Endpoint {
+public class Endpoint extends AbstractAuditableEntity<Long> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -168,6 +178,38 @@ public class Endpoint {
 
     public void setEndpointPolicies(Set<EndpointPolicy> endpointPolicies) {
         this.endpointPolicies = endpointPolicies;
+    }
+
+    @Override
+    public String entityType() {
+        return "ENDPOINT";
+    }
+
+    @Override
+    public String entityId() {
+        return id != null ? id.toString() : null;
+    }
+
+    @Override
+    @JsonIgnore
+    @Transient
+    public Map<String, Object> auditState() {
+        return auditStateOf(
+                "id", id,
+                "service", service,
+                "version", version,
+                "method", method,
+                "path", path,
+                "description", description,
+                "uiType", uiType,
+                "isActive", isActive,
+                "policyIds", endpointPolicies.stream()
+                        .map(ep -> ep.getPolicy() != null ? ep.getPolicy().getId() : null)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList()),
+                "createdAt", createdAt != null ? createdAt.toString() : null,
+                "updatedAt", updatedAt != null ? updatedAt.toString() : null
+        );
     }
 
     @Override

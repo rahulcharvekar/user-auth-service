@@ -18,8 +18,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -45,6 +47,9 @@ public class AuthService {
     
     @Autowired
     private JwtUtils jwtUtils;
+
+    @Autowired
+    private TokenBlacklistService tokenBlacklistService;
     
     public AuthResponse login(LoginRequest loginRequest) {
         logger.info("Attempting login for user: {}", loginRequest.getUsername());
@@ -80,6 +85,32 @@ public class AuthService {
             jwtUtils.getExpirationInstant(jwt)
         );
     }
+
+    public void logout(String rawToken) {
+        if (!StringUtils.hasText(rawToken)) {
+            throw new IllegalArgumentException("JWT token is required for logout");
+        }
+
+        if (!jwtUtils.validateJwtToken(rawToken)) {
+            throw new RuntimeException("Invalid or expired JWT token");
+        }
+
+        String tokenId = jwtUtils.getTokenId(rawToken);
+        Instant expiresAt = jwtUtils.getExpirationInstant(rawToken);
+        Long userId = jwtUtils.getUserIdFromToken(rawToken);
+
+        if (tokenId == null) {
+            throw new RuntimeException("Unable to extract token identifier");
+        }
+
+        if (expiresAt == null) {
+            expiresAt = Instant.now();
+        }
+
+        tokenBlacklistService.revokeToken(tokenId, userId, expiresAt);
+        SecurityContextHolder.clearContext();
+        logger.info("Token {} revoked successfully for logout", tokenId);
+    }
     
     public AuthResponse register(RegisterRequest registerRequest) {
         logger.info("Attempting registration for user: {}", registerRequest.getUsername());
@@ -100,7 +131,12 @@ public class AuthService {
             registerRequest.getFullName(),
             registerRequest.getRole() != null ? registerRequest.getRole() : UserRole.WORKER
         );
-        
+
+        Long nextId = userRepository.findTopByOrderByIdDesc()
+                .map(existing -> existing.getId() + 1)
+                .orElse(1L);
+        user.setId(nextId);
+
         userRepository.save(user);
         
         logger.info("User {} registered successfully", user.getUsername());

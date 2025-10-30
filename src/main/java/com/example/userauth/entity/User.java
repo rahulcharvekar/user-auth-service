@@ -17,11 +17,22 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.shared.entityaudit.annotation.EntityAuditEnabled;
+import com.shared.entityaudit.descriptor.AbstractAuditableEntity;
+import com.shared.entityaudit.listener.SharedEntityAuditListener;
 
 @Entity
+@Access(AccessType.FIELD)
+@EntityAuditEnabled
+@EntityListeners(SharedEntityAuditListener.class)
 @Table(name = "users")
-public class User implements UserDetails {
+public class User extends AbstractAuditableEntity<Long> implements UserDetails {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -264,7 +275,43 @@ public class User implements UserDetails {
         }
         this.updatedAt = LocalDateTime.now();
     }
-    
+
+    @Override
+    public String entityType() {
+        return "USER";
+    }
+
+    @Override
+    public String entityId() {
+        return id != null ? id.toString() : null;
+    }
+
+    @Override
+    @JsonIgnore
+    @Transient
+    public Map<String, Object> auditState() {
+        return auditStateOf(
+                "id", id,
+                "username", username,
+                "email", email,
+                "fullName", fullName,
+                "role", role != null ? role.name() : null,
+                "roles", roles.stream()
+                        .map(Role::getId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList()),
+                "permissionVersion", permissionVersion,
+                "enabled", enabled,
+                "accountNonExpired", accountNonExpired,
+                "accountNonLocked", accountNonLocked,
+                "credentialsNonExpired", credentialsNonExpired,
+                "passwordHash", password,
+                "createdAt", createdAt != null ? createdAt.toString() : null,
+                "updatedAt", updatedAt != null ? updatedAt.toString() : null,
+                "lastLogin", lastLogin != null ? lastLogin.toString() : null
+        );
+    }
+
     @PreUpdate
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();

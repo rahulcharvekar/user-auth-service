@@ -53,7 +53,8 @@ public class EnhancedSecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 
                 // Public endpoints
-                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register").permitAll()
+                .requestMatchers("/api/auth/**").authenticated()
                 .requestMatchers("/api/public/**").permitAll()
                 .requestMatchers("/internal/auth/**").permitAll()
 

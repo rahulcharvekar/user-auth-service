@@ -1,14 +1,22 @@
 package com.example.userauth.entity;
 
 import jakarta.persistence.*;
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.shared.entityaudit.annotation.EntityAuditEnabled;
+import com.shared.entityaudit.descriptor.AbstractAuditableEntity;
+import com.shared.entityaudit.listener.SharedEntityAuditListener;
 
 /**
  * Junction table linking Endpoints to Policies (Many-to-Many relationship).
  * Defines which policies protect which endpoints.
  */
 @Entity
+@EntityAuditEnabled
+@EntityListeners(SharedEntityAuditListener.class)
 @Table(name = "endpoint_policies")
-public class EndpointPolicy {
+public class EndpointPolicy extends AbstractAuditableEntity<Long> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,6 +61,20 @@ public class EndpointPolicy {
 
     public void setPolicy(Policy policy) {
         this.policy = policy;
+    }
+
+    @Override
+    public String entityType() {
+        return "ENDPOINT_POLICY";
+    }
+
+    @Override
+    public Map<String, Object> auditState() {
+        return auditStateOf(
+                "id", id,
+                "endpointId", endpoint != null ? endpoint.getId() : null,
+                "policyId", policy != null ? policy.getId() : null
+        );
     }
 
     @Override

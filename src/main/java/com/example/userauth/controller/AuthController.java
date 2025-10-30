@@ -20,6 +20,7 @@ import org.springframework.http.HttpHeaders;
 import jakarta.servlet.http.HttpServletRequest;
 import com.shared.common.util.ETagUtil;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.util.StringUtils;
 
 
 import com.shared.common.annotation.Auditable;
@@ -64,6 +65,35 @@ public class AuthController {
             logger.error("Login failed for user: {}", loginRequest.getUsername(), e);
             return ResponseEntity.badRequest()
                 .body(Map.of("error", "Invalid username or password"));
+        }
+    }
+
+    @PostMapping("/logout")
+    @Auditable(action = "LOGOUT", resourceType = "USER")
+    @Operation(summary = "User logout", description = "Revoke the current JWT token")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Logout successful"),
+        @ApiResponse(responseCode = "400", description = "Authorization header missing"),
+        @ApiResponse(responseCode = "401", description = "Invalid or expired token")
+    })
+    public ResponseEntity<?> logout(HttpServletRequest request) {
+        String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+        if (!StringUtils.hasText(authHeader) || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Authorization header with Bearer token is required"));
+        }
+
+        String token = authHeader.substring(7);
+
+        try {
+            authService.logout(token);
+            return ResponseEntity.ok(Map.of("message", "Logout successful"));
+        } catch (IllegalArgumentException e) {
+            logger.warn("Logout failed due to missing token: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (RuntimeException e) {
+            logger.error("Logout failed for token", e);
+            return ResponseEntity.status(401).body(Map.of("error", "Invalid or expired token"));
         }
     }
     

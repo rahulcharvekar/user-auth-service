@@ -2,6 +2,12 @@ package com.example.userauth.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.shared.entityaudit.annotation.EntityAuditEnabled;
+import com.shared.entityaudit.descriptor.AbstractAuditableEntity;
+import com.shared.entityaudit.listener.SharedEntityAuditListener;
 
 /**
  * Represents a granular capability/permission in the system.
@@ -9,8 +15,10 @@ import java.time.LocalDateTime;
  * Examples: USER_READ, PAYMENT_APPROVE, WORKER_UPLOAD
  */
 @Entity
+@EntityAuditEnabled
+@EntityListeners(SharedEntityAuditListener.class)
 @Table(name = "capabilities")
-public class Capability {
+public class Capability extends AbstractAuditableEntity<Long> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -134,6 +142,33 @@ public class Capability {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    @Override
+    public String entityType() {
+        return "CAPABILITY";
+    }
+
+    @Override
+    public String entityId() {
+        return id != null ? id.toString() : null;
+    }
+
+    @Override
+    @JsonIgnore
+    @Transient
+    public Map<String, Object> auditState() {
+        return auditStateOf(
+                "id", id,
+                "name", name,
+                "description", description,
+                "module", module,
+                "action", action,
+                "resource", resource,
+                "isActive", isActive,
+                "createdAt", createdAt != null ? createdAt.toString() : null,
+                "updatedAt", updatedAt != null ? updatedAt.toString() : null
+        );
     }
 
     /**

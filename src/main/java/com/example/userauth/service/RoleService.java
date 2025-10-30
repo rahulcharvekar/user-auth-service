@@ -1,10 +1,10 @@
 package com.example.userauth.service;
 
+import com.example.userauth.dao.RoleQueryDao;
 import com.example.userauth.entity.Role;
 import com.example.userauth.entity.User;
 import com.example.userauth.repository.RoleRepository;
 import com.example.userauth.repository.UserRepository;
-import com.example.userauth.dao.RoleQueryDao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -32,7 +33,7 @@ public class RoleService {
     
     @Autowired
     private RoleQueryDao roleQueryDao;
-    
+        
     // READ OPERATIONS - Using Query DAO
     @Transactional(readOnly = true)
     public List<Role> getAllRoles() {
@@ -92,8 +93,21 @@ public class RoleService {
             throw new IllegalArgumentException("Role with name '" + name + "' already exists");
         }
         
-        role.setName(name);
-        role.setDescription(description);
+        boolean changed = false;
+        
+        if (!Objects.equals(role.getName(), name)) {
+            role.setName(name);
+            changed = true;
+        }
+        if (!Objects.equals(role.getDescription(), description)) {
+            role.setDescription(description);
+            changed = true;
+        }
+        
+        if (!changed) {
+            logger.debug("No changes detected for role id: {}", id);
+            return role;
+        }
         
         return roleRepository.save(role);
     }
@@ -171,4 +185,5 @@ public class RoleService {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'getRoleByNameWithPermissions'");
     }
+
 }

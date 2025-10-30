@@ -49,6 +49,8 @@ shared-lib:
     introspection:
       api-key: ${INTERNAL_API_KEY:}
       api-key-header: X-Internal-Api-Key
+  entity-audit:
+    enabled: true
 
 auth:
   internal:

@@ -17,6 +17,7 @@ spring:
 logging:
   level:
     "[com.example.userauth]": DEBUG
+    "[com.shared.entityaudit]": DEBUG
     "[org.hibernate.SQL]": DEBUG
     "[org.hibernate.type.descriptor.sql.BasicBinder]": TRACE
   file:
@@ -33,6 +34,8 @@ management:
 
 # Audit Utility Configuration
 shared-lib:
+  entity-audit:
+    enabled: true
   audit:
     enabled: true  # Set to true to enable audit logging
     table-name: audit_event

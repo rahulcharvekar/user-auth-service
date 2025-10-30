@@ -3,7 +3,13 @@ package com.example.userauth.entity;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.shared.entityaudit.annotation.EntityAuditEnabled;
+import com.shared.entityaudit.descriptor.AbstractAuditableEntity;
+import com.shared.entityaudit.listener.SharedEntityAuditListener;
 
 /**
  * Represents an authorization policy in the system.
@@ -11,8 +17,10 @@ import java.util.Set;
  * Contains JSON expression for complex authorization logic.
  */
 @Entity
+@EntityAuditEnabled
+@EntityListeners(SharedEntityAuditListener.class)
 @Table(name = "policies")
-public class Policy {
+public class Policy extends AbstractAuditableEntity<Long> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -136,6 +144,27 @@ public class Policy {
 
     public void setPolicyCapabilities(Set<PolicyCapability> policyCapabilities) {
         this.policyCapabilities = policyCapabilities;
+    }
+
+    @Override
+    public String entityType() {
+        return "POLICY";
+    }
+
+    @Override
+    @JsonIgnore
+    @Transient
+    public Map<String, Object> auditState() {
+        return auditStateOf(
+                "id", id,
+                "name", name,
+                "description", description,
+                "type", type,
+                "expression", expression,
+                "isActive", isActive,
+                "createdAt", createdAt != null ? createdAt.toString() : null,
+                "updatedAt", updatedAt != null ? updatedAt.toString() : null
+        );
     }
 
     @Override

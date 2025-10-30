@@ -1,5 +1,6 @@
 package com.example.userauth.security;
 
+import com.example.userauth.service.TokenBlacklistService;
 import com.example.userauth.service.UserDetailsServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -32,6 +33,9 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     
     @Autowired
     private UserDetailsServiceImpl userDetailsService;
+
+    @Autowired
+    private TokenBlacklistService tokenBlacklistService;
     
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
@@ -39,6 +43,13 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         try {
             String jwt = parseJwt(request);
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
+                String jti = jwtUtils.getTokenId(jwt);
+                if (tokenBlacklistService.isTokenRevoked(jti)) {
+                    logger.debug("Rejected request with revoked token id {}", jti);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
                 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);

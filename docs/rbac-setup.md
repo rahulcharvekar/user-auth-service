@@ -203,6 +203,11 @@ flowchart TD
    POST `/api/admin/policies` (`PolicyController.java`).  
    Example: Allow "ADMIN" and "MANAGER" to read users.  
    Body: `{"name": "User Read Policy", "expression": "{\"roles\": [\"ADMIN\", \"MANAGER\"]}"}`  
+   **Important:** The role names in the `expression` (like "ADMIN", "MANAGER") must exactly match the `name` field in the `roles` table (see `Role.java`).  
+   To ensure consistency:  
+   - First, create roles via `/api/admin/roles` (e.g., POST `{"name": "ADMIN", "description": "Administrator"}`).  
+   - Then, when creating policies, use the exact same names in the expression.  
+   - You can GET `/api/admin/roles` to list existing roles and their names.  
    Then assign capability and endpoint IDs to the policy.
 
 5. **Assign Roles to Users**  

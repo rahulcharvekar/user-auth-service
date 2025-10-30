@@ -2,16 +2,7 @@
 
 This guide walks through the project structure of the auth service and explains, step by step, how to configure and operate the role-based access control (RBAC) stack.
 
-4. **Create Policies**  
-   POST `/api/admin/policies` (`PolicyController.java`).  
-   Example: Allow "ADMIN" and "MANAGER" to read users.  
-   Body: `{"name": "User Read Policy", "expression": "{\"roles\": [\"ADMIN\", \"MANAGER\"]}"}`  
-   **Important:** The role names in the `expression` must exactly match existing roles in the ROLE table. The API now validates this—trying to create a policy with non-existent roles will fail.  
-   For better UX, the UI should:  
-   - Fetch available roles from `GET /api/admin/roles`.  
-   - Use a multi-select dropdown instead of free text input for roles.  
-   This prevents typos and ensures consistency.  
-   Then assign capability and endpoint IDs to the policy.w
+## Overview
 
 Role-Based Access Control (RBAC) is a way to manage who can do what in your application. This auth service uses RBAC to control access to APIs and UI elements based on user roles.
 
@@ -34,6 +25,43 @@ In simple terms:
 - Users have roles (like "ADMIN" or "USER").
 - Roles are linked to policies that define what they can do.
 - When a user tries to access something, the system checks if their roles allow it.
+
+## RBAC Example
+
+Let's walk through a concrete example to make RBAC clearer. Imagine a payment reconciliation system with these requirements:
+
+**Users:**
+- Alice: System Administrator
+- Bob: Reconciliation Officer
+- Charlie: Regular User
+
+**Roles:**
+- ADMIN: Full system access
+- RECONCILIATION_OFFICER: Can reconcile payments and view reports
+- USER: Basic access only
+
+**Capabilities (Actions):**
+- CREATE_USER: Create new users
+- READ_PAYMENT: View payment records
+- RECONCILE_PAYMENT: Process payment reconciliations
+- VIEW_REPORTS: Access financial reports
+
+**Policies:**
+- Admin Policy: Allows ADMIN role to do everything
+- Officer Policy: Allows RECONCILIATION_OFFICER to reconcile payments and view reports
+- User Policy: Allows USER to view their own payments
+
+**Endpoints:**
+- POST /api/users (create user) - Protected by Admin Policy
+- GET /api/payments (view payments) - Protected by Officer Policy and User Policy
+- POST /api/payments/reconcile (reconcile) - Protected by Officer Policy
+
+**How it works:**
+1. Alice logs in → Gets ADMIN role → Can access all endpoints
+2. Bob logs in → Gets RECONCILIATION_OFFICER role → Can reconcile and view reports, but can't create users
+3. Charlie logs in → Gets USER role → Can only view payments, nothing else
+
+This ensures each user only accesses what they need for their job.
 
 ## Project Structure Overview
 
@@ -212,11 +240,11 @@ flowchart TD
    POST `/api/admin/policies` (`PolicyController.java`).  
    Example: Allow "ADMIN" and "MANAGER" to read users.  
    Body: `{"name": "User Read Policy", "expression": "{\"roles\": [\"ADMIN\", \"MANAGER\"]}"}`  
-   **Important:** The role names in the `expression` (like "ADMIN", "MANAGER") must exactly match the `name` field in the `roles` table (see `Role.java`).  
-   To ensure consistency:  
-   - First, create roles via `/api/admin/roles` (e.g., POST `{"name": "ADMIN", "description": "Administrator"}`).  
-   - Then, when creating policies, use the exact same names in the expression.  
-   - You can GET `/api/admin/roles` to list existing roles and their names.  
+   **Important:** The role names in the `expression` must exactly match existing roles in the ROLE table. The API now validates this—trying to create a policy with non-existent roles will fail.  
+   For better UX, the UI should:  
+   - Fetch available roles from `GET /api/admin/roles`.  
+   - Use a multi-select dropdown instead of free text input for roles.  
+   This prevents typos and ensures consistency.  
    Then assign capability and endpoint IDs to the policy.
 
 5. **Assign Roles to Users**  

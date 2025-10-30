@@ -6,6 +6,7 @@ import com.example.userauth.entity.PolicyCapability;
 import com.example.userauth.repository.CapabilityRepository;
 import com.example.userauth.repository.PolicyCapabilityRepository;
 import com.example.userauth.repository.PolicyRepository;
+import com.example.userauth.repository.RoleRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +25,7 @@ import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.shared.common.annotation.Auditable;
@@ -45,14 +47,17 @@ public class PolicyController {
     private final PolicyRepository policyRepository;
     private final CapabilityRepository capabilityRepository;
     private final PolicyCapabilityRepository policyCapabilityRepository;
+    private final RoleRepository roleRepository;
 
     public PolicyController(
             PolicyRepository policyRepository,
             CapabilityRepository capabilityRepository,
-            PolicyCapabilityRepository policyCapabilityRepository) {
+            PolicyCapabilityRepository policyCapabilityRepository,
+            RoleRepository roleRepository) {
         this.policyRepository = policyRepository;
         this.capabilityRepository = capabilityRepository;
         this.policyCapabilityRepository = policyCapabilityRepository;
+        this.roleRepository = roleRepository;
     }
 
     /**
@@ -110,6 +115,11 @@ public class PolicyController {
     @PostMapping
     @Transactional
     public ResponseEntity<Map<String, Object>> createPolicy(@RequestBody PolicyRequest request) {
+        // Validate roles in expression if it's RBAC type
+        if ("RBAC".equalsIgnoreCase(request.getType()) || request.getType() == null) {
+            validateRolesInExpression(request.getExpression());
+        }
+
         Policy policy = new Policy(
                 request.getName(),
                 request.getDescription(),
@@ -128,6 +138,25 @@ public class PolicyController {
     }
 
     /**
+     * Validate that all roles in the policy expression exist in the database
+     */
+    private void validateRolesInExpression(String expression) {
+        try {
+            JsonNode policyExpression = objectMapper.readTree(expression);
+            if (policyExpression.has("roles") && policyExpression.get("roles").isArray()) {
+                for (JsonNode roleNode : policyExpression.get("roles")) {
+                    String roleName = roleNode.asText();
+                    if (!roleRepository.existsByName(roleName)) {
+                        throw new IllegalArgumentException("Role '" + roleName + "' does not exist");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid policy expression or role not found: " + e.getMessage());
+        }
+    }
+
+    /**
      * Update policy
      */
     @PutMapping("/{id}")
@@ -142,6 +171,10 @@ public class PolicyController {
                     policy.setDescription(request.getDescription());
                     if (request.getType() != null) {
                         policy.setType(request.getType());
+                    }
+                    // Validate roles in expression if it's RBAC type
+                    if ("RBAC".equalsIgnoreCase(request.getType()) || request.getType() == null) {
+                        validateRolesInExpression(request.getExpression());
                     }
                     policy.setExpression(request.getExpression());
                     policy.setIsActive(request.getIsActive());

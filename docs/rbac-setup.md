@@ -2,7 +2,16 @@
 
 This guide walks through the project structure of the auth service and explains, step by step, how to configure and operate the role-based access control (RBAC) stack.
 
-## Overview
+4. **Create Policies**  
+   POST `/api/admin/policies` (`PolicyController.java`).  
+   Example: Allow "ADMIN" and "MANAGER" to read users.  
+   Body: `{"name": "User Read Policy", "expression": "{\"roles\": [\"ADMIN\", \"MANAGER\"]}"}`  
+   **Important:** The role names in the `expression` must exactly match existing roles in the ROLE table. The API now validates this—trying to create a policy with non-existent roles will fail.  
+   For better UX, the UI should:  
+   - Fetch available roles from `GET /api/admin/roles`.  
+   - Use a multi-select dropdown instead of free text input for roles.  
+   This prevents typos and ensures consistency.  
+   Then assign capability and endpoint IDs to the policy.w
 
 Role-Based Access Control (RBAC) is a way to manage who can do what in your application. This auth service uses RBAC to control access to APIs and UI elements based on user roles.
 

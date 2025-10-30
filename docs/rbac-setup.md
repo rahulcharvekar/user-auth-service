@@ -63,7 +63,326 @@ Let's walk through a concrete example to make RBAC clearer. Imagine a payment re
 
 This ensures each user only accesses what they need for their job.
 
-## Project Structure Overview
+## Step-by-Step Setup Examples
+
+Let's walk through complete examples of setting up two users: a System Admin and a Worker. We'll use the admin APIs to configure everything.
+
+### Example 1: System Admin User Setup
+
+**Goal:** Create Alice as a system admin who can do everything.
+
+#### Step 1: Create the ADMIN Role
+```bash
+POST /api/admin/roles
+Content-Type: application/json
+
+{
+  "name": "ADMIN",
+  "description": "System Administrator with full access"
+}
+```
+
+#### Step 2: Create Capabilities for Admin Actions
+```bash
+# Create user management capability
+POST /api/admin/capabilities
+Content-Type: application/json
+
+{
+  "name": "CREATE_USER",
+  "module": "USER",
+  "action": "CREATE",
+  "resource": "USER"
+}
+
+# Create payment management capability
+POST /api/admin/capabilities
+Content-Type: application/json
+
+{
+  "name": "MANAGE_PAYMENTS",
+  "module": "PAYMENT",
+  "action": "MANAGE",
+  "resource": "PAYMENT"
+}
+
+# Create report access capability
+POST /api/admin/capabilities
+Content-Type: application/json
+
+{
+  "name": "VIEW_ALL_REPORTS",
+  "module": "REPORT",
+  "action": "VIEW",
+  "resource": "ALL_REPORTS"
+}
+```
+
+#### Step 3: Register Endpoints to Protect
+```bash
+# User creation endpoint
+POST /api/admin/endpoints
+Content-Type: application/json
+
+{
+  "method": "POST",
+  "path": "/api/users",
+  "service": "user-service",
+  "description": "Create new users"
+}
+
+# Payment management endpoint
+POST /api/admin/endpoints
+Content-Type: application/json
+
+{
+  "method": "POST",
+  "path": "/api/payments",
+  "service": "payment-service",
+  "description": "Manage payments"
+}
+
+# Reports endpoint
+POST /api/admin/endpoints
+Content-Type: application/json
+
+{
+  "method": "GET",
+  "path": "/api/reports",
+  "service": "report-service",
+  "description": "Access all reports"
+}
+```
+
+#### Step 4: Create Admin Policy
+```bash
+POST /api/admin/policies
+Content-Type: application/json
+
+{
+  "name": "Admin Full Access Policy",
+  "description": "Grants all permissions to administrators",
+  "type": "RBAC",
+  "expression": "{\"roles\": [\"ADMIN\"]}",
+  "capabilityIds": [1, 2, 3],  # IDs from capabilities created above
+  "isActive": true
+}
+```
+
+#### Step 5: Link Policy to Endpoints
+```bash
+# Link admin policy to user creation endpoint
+POST /api/admin/endpoints/1/policies
+Content-Type: application/json
+
+{
+  "policyId": 1
+}
+
+# Link admin policy to payment management endpoint
+POST /api/admin/endpoints/2/policies
+Content-Type: application/json
+
+{
+  "policyId": 1
+}
+
+# Link admin policy to reports endpoint
+POST /api/admin/endpoints/3/policies
+Content-Type: application/json
+
+{
+  "policyId": 1
+}
+```
+
+#### Step 6: Create the Admin User
+```bash
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "username": "alice",
+  "email": "alice@company.com",
+  "password": "SecurePass123!"
+}
+```
+
+#### Step 7: Assign Admin Role to User
+```bash
+POST /api/admin/roles/assign
+Content-Type: application/json
+
+{
+  "userId": 1,  # Alice's user ID
+  "roleId": 1   # ADMIN role ID
+}
+```
+
+**Result:** Alice can now access all endpoints and perform all actions.
+
+---
+
+### Example 2: Worker User Setup
+
+**Goal:** Create Bob as a worker who can only process payments and view basic reports.
+
+#### Step 1: Create the WORKER Role
+```bash
+POST /api/admin/roles
+Content-Type: application/json
+
+{
+  "name": "WORKER",
+  "description": "Worker with limited access to payment processing"
+}
+```
+
+#### Step 2: Create Capabilities for Worker Actions
+```bash
+# Payment processing capability
+POST /api/admin/capabilities
+Content-Type: application/json
+
+{
+  "name": "PROCESS_PAYMENTS",
+  "module": "PAYMENT",
+  "action": "PROCESS",
+  "resource": "PAYMENT"
+}
+
+# Basic report viewing capability
+POST /api/admin/capabilities
+Content-Type: application/json
+
+{
+  "name": "VIEW_BASIC_REPORTS",
+  "module": "REPORT",
+  "action": "VIEW",
+  "resource": "BASIC_REPORTS"
+}
+```
+
+#### Step 3: Register Worker-Specific Endpoints
+```bash
+# Payment processing endpoint
+POST /api/admin/endpoints
+Content-Type: application/json
+
+{
+  "method": "POST",
+  "path": "/api/payments/process",
+  "service": "payment-service",
+  "description": "Process individual payments"
+}
+
+# Basic reports endpoint
+POST /api/admin/endpoints
+Content-Type: application/json
+
+{
+  "method": "GET",
+  "path": "/api/reports/basic",
+  "service": "report-service",
+  "description": "View basic payment reports"
+}
+```
+
+#### Step 4: Create Worker Policy
+```bash
+POST /api/admin/policies
+Content-Type: application/json
+
+{
+  "name": "Worker Limited Access Policy",
+  "description": "Grants payment processing and basic report access to workers",
+  "type": "RBAC",
+  "expression": "{\"roles\": [\"WORKER\"]}",
+  "capabilityIds": [4, 5],  # IDs from worker capabilities
+  "isActive": true
+}
+```
+
+#### Step 5: Link Policy to Worker Endpoints
+```bash
+# Link worker policy to payment processing endpoint
+POST /api/admin/endpoints/4/policies
+Content-Type: application/json
+
+{
+  "policyId": 2
+}
+
+# Link worker policy to basic reports endpoint
+POST /api/admin/endpoints/5/policies
+Content-Type: application/json
+
+{
+  "policyId": 2
+}
+```
+
+#### Step 6: Create the Worker User
+```bash
+POST /api/auth/register
+Content-Type: application/json
+
+{
+  "username": "bob",
+  "email": "bob@company.com",
+  "password": "WorkerPass456!"
+}
+```
+
+#### Step 7: Assign Worker Role to User
+```bash
+POST /api/admin/roles/assign
+Content-Type: application/json
+
+{
+  "userId": 2,  # Bob's user ID
+  "roleId": 2   # WORKER role ID
+}
+```
+
+**Result:** Bob can now only process payments and view basic reports. He cannot create users or access admin reports.
+
+---
+
+### Testing the Setup
+
+1. **Login as Alice (Admin):**
+   ```bash
+   POST /api/auth/login
+   Content-Type: application/json
+
+   {
+     "username": "alice",
+     "password": "SecurePass123!"
+   }
+   ```
+   Use the returned JWT to access any endpoint.
+
+2. **Login as Bob (Worker):**
+   ```bash
+   POST /api/auth/login
+   Content-Type: application/json
+
+   {
+     "username": "bob",
+     "password": "WorkerPass456!"
+   }
+   ```
+   Use the JWT - should work for `/api/payments/process` and `/api/reports/basic`, but fail for `/api/users` or `/api/reports`.
+
+3. **Check Authorizations:**
+   ```bash
+   GET /api/me/authorizations
+   Authorization: Bearer <jwt_token>
+   ```
+   Alice should see all capabilities, Bob should see only worker capabilities.
+
+This step-by-step approach shows exactly how to configure different access levels for different user types.
 
 This is a Spring Boot application built with Maven. Here's the key structure:
 

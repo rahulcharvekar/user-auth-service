@@ -31,16 +31,16 @@ In simple terms:
 ```mermaid
 flowchart LR
     subgraph UI["Product surface"]
-        A1[UI Action\\n(e.g. View Recon Dashboard)]
-        A2[Endpoint\\n(e.g. GET /api/recon/summary)]
+        A1[UI Action<br/>(e.g. View Recon Dashboard)]
+        A2[Endpoint<br/>(e.g. GET /api/recon/summary)]
     end
     subgraph Catalog["Authorization catalog"]
-        B1[Capability\\n(e.g. reconciliation.dashboard.view)]
-        B2[Policy\\n(e.g. TECHADMIN_ADMIN_POLICY)]
-        B3[Role\\n(e.g. TECH_ADMIN)]
+        B1[Capability<br/>(e.g. reconciliation.dashboard.view)]
+        B2[Policy<br/>(e.g. TECHADMIN_ADMIN_POLICY)]
+        B3[Role<br/>(e.g. TECH_ADMIN)]
     end
     subgraph People["Identity"]
-        C1[User\\n(e.g. Alice)]
+        C1[User<br/>(e.g. Alice)]
     end
     A1 --> B1
     A2 --> B2

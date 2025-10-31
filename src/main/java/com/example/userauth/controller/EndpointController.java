@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -260,11 +261,80 @@ public class EndpointController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * Bulk assign a single policy to multiple endpoints
+     */
+    @PostMapping("/bulk-policy-assignment")
+    @Transactional
+    @Auditable(action = "BULK_ASSIGN_POLICY_TO_ENDPOINTS", resourceType = "ENDPOINT")
+    public ResponseEntity<Map<String, Object>> bulkAssignPolicyToEndpoints(
+            @RequestBody BulkPolicyAssignmentRequest request) {
+
+        if (request.getPolicyId() == null) {
+            throw new IllegalArgumentException("policyId is required");
+        }
+        if (request.getEndpointIds() == null || request.getEndpointIds().isEmpty()) {
+            throw new IllegalArgumentException("At least one endpointId is required");
+        }
+
+        Long policyId = request.getPolicyId();
+        Policy policy = policyRepository.findById(policyId)
+                .orElseThrow(() -> new IllegalArgumentException("Policy not found: " + policyId));
+
+        long nextId = endpointPolicyRepository.findTopByOrderByIdDesc()
+                .map(existing -> existing.getId() + 1)
+                .orElse(1L);
+
+        List<Long> newlyAssigned = new ArrayList<>();
+
+        for (Long endpointId : request.getEndpointIds()) {
+            Endpoint endpoint = endpointRepository.findById(endpointId)
+                    .orElseThrow(() -> new IllegalArgumentException("Endpoint not found: " + endpointId));
+
+            if (!endpointPolicyRepository.existsByEndpointIdAndPolicyId(endpointId, policyId)) {
+                EndpointPolicy ep = new EndpointPolicy(endpoint, policy);
+                ep.setId(nextId++);
+                endpointPolicyRepository.save(ep);
+                newlyAssigned.add(endpointId);
+            }
+        }
+
+        List<Map<String, Object>> endpointSummaries = endpointPolicyRepository.findByPolicyId(policyId)
+                .stream()
+                .map(ep -> {
+                    Endpoint endpoint = ep.getEndpoint();
+                    Map<String, Object> summary = new HashMap<>();
+                    summary.put("id", endpoint.getId());
+                    summary.put("service", endpoint.getService());
+                    summary.put("version", endpoint.getVersion());
+                    summary.put("method", endpoint.getMethod());
+                    summary.put("path", endpoint.getPath());
+                    summary.put("description", endpoint.getDescription());
+                    return summary;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("policyId", policyId);
+        response.put("newlyAssignedEndpointIds", newlyAssigned);
+        response.put("totalEndpointCount", endpointSummaries.size());
+        response.put("endpoints", endpointSummaries);
+
+        return ResponseEntity.ok(response);
+    }
+
     // Helper methods
     
     private void assignPolicies(Long endpointId, Set<Long> policyIds) {
+        if (policyIds == null || policyIds.isEmpty()) {
+            return;
+        }
         Endpoint endpoint = endpointRepository.findById(endpointId)
                 .orElseThrow(() -> new RuntimeException("Endpoint not found"));
+        
+        long nextId = endpointPolicyRepository.findTopByOrderByIdDesc()
+                .map(existing -> existing.getId() + 1)
+                .orElse(1L);
         
         for (Long policyId : policyIds) {
             Policy policy = policyRepository.findById(policyId)
@@ -273,6 +343,7 @@ public class EndpointController {
             // Check if already exists
             if (!endpointPolicyRepository.existsByEndpointIdAndPolicyId(endpointId, policyId)) {
                 EndpointPolicy ep = new EndpointPolicy(endpoint, policy);
+                ep.setId(nextId++);
                 endpointPolicyRepository.save(ep);
             }
         }
@@ -345,5 +416,26 @@ public class EndpointController {
 
         public Set<Long> getPolicyIds() { return policyIds; }
         public void setPolicyIds(Set<Long> policyIds) { this.policyIds = policyIds; }
+    }
+
+    public static class BulkPolicyAssignmentRequest {
+        private Long policyId;
+        private Set<Long> endpointIds;
+
+        public Long getPolicyId() {
+            return policyId;
+        }
+
+        public void setPolicyId(Long policyId) {
+            this.policyId = policyId;
+        }
+
+        public Set<Long> getEndpointIds() {
+            return endpointIds;
+        }
+
+        public void setEndpointIds(Set<Long> endpointIds) {
+            this.endpointIds = endpointIds;
+        }
     }
 }

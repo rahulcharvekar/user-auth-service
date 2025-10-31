@@ -78,4 +78,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
            "WHERE ep.endpoint.id = :endpointId " +
            "AND p.isActive = true")
     List<Policy> findByEndpointId(@Param("endpointId") Long endpointId);
+
+    Optional<Policy> findTopByOrderByIdDesc();
 }

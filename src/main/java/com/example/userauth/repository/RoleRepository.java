@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RoleRepository extends JpaRepository<Role, Long> {
@@ -18,4 +19,6 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     
     // Keep for write operation validations
     boolean existsByName(String name);
+
+    Optional<Role> findTopByOrderByIdDesc();
 }

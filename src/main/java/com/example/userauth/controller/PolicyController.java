@@ -126,6 +126,10 @@ public class PolicyController {
                 request.getType() != null ? request.getType() : "ROLE_BASED",
                 request.getExpression()
         );
+        Long nextId = policyRepository.findTopByOrderByIdDesc()
+                .map(existing -> existing.getId() + 1)
+                .orElse(1L);
+        policy.setId(nextId);
         policy.setIsActive(request.getIsActive());
         Policy saved = policyRepository.save(policy);
         
@@ -285,6 +289,10 @@ public class PolicyController {
         Policy policy = policyRepository.findById(policyId)
                 .orElseThrow(() -> new RuntimeException("Policy not found"));
         
+        long nextId = policyCapabilityRepository.findTopByOrderByIdDesc()
+                .map(existing -> existing.getId() + 1)
+                .orElse(1L);
+
         for (Long capabilityId : capabilityIds) {
             Capability capability = capabilityRepository.findById(capabilityId)
                     .orElseThrow(() -> new RuntimeException("Capability not found: " + capabilityId));
@@ -292,6 +300,7 @@ public class PolicyController {
             // Check if already exists
             if (!policyCapabilityRepository.existsByPolicyIdAndCapabilityId(policyId, capabilityId)) {
                 PolicyCapability pc = new PolicyCapability(policy, capability);
+                pc.setId(nextId++);
                 policyCapabilityRepository.save(pc);
             }
         }

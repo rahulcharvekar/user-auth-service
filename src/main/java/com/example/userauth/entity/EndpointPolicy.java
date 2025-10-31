@@ -3,7 +3,6 @@ package com.example.userauth.entity;
 import jakarta.persistence.*;
 import java.util.Map;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.shared.entityaudit.annotation.EntityAuditEnabled;
 import com.shared.entityaudit.descriptor.AbstractAuditableEntity;
 import com.shared.entityaudit.listener.SharedEntityAuditListener;
@@ -40,11 +39,12 @@ public class EndpointPolicy extends AbstractAuditableEntity<Long> {
 
     // Getters and Setters
     public Long getId() {
-        return id;
+        return id != null ? id : (Long) super.getId();
     }
 
     public void setId(Long id) {
         this.id = id;
+        super.setId(id);
     }
 
     public Endpoint getEndpoint() {

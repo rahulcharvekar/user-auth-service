@@ -79,6 +79,12 @@ public class RoleService {
         }
         
         Role role = new Role(name, description);
+        
+        Long nextId = roleRepository.findTopByOrderByIdDesc()
+                .map(existing -> existing.getId() + 1)
+                .orElse(1L);
+        role.setId(nextId);
+        
         return roleRepository.save(role);
     }
     

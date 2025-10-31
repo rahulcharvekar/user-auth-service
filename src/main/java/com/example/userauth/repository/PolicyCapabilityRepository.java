@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository for PolicyCapability entity.
@@ -51,4 +52,6 @@ public interface PolicyCapabilityRepository extends JpaRepository<PolicyCapabili
     @Modifying
     @Query("DELETE FROM PolicyCapability pc WHERE pc.policy.id = :policyId AND pc.capability.id = :capabilityId")
     void deleteByPolicyIdAndCapabilityId(@Param("policyId") Long policyId, @Param("capabilityId") Long capabilityId);
+
+    Optional<PolicyCapability> findTopByOrderByIdDesc();
 }

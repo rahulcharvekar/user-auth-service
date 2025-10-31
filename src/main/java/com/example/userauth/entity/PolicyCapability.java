@@ -22,6 +22,7 @@ public class PolicyCapability extends AbstractAuditableEntity<Long> {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "policy_id", nullable = false)
     private Policy policy;
@@ -40,11 +41,12 @@ public class PolicyCapability extends AbstractAuditableEntity<Long> {
 
     // Getters and Setters
     public Long getId() {
-        return id;
+        return id != null ? id : (Long) super.getId();
     }
 
     public void setId(Long id) {
         this.id = id;
+        super.setId(id);
     }
 
     public Policy getPolicy() {

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repository for EndpointPolicy entity.
@@ -55,4 +56,6 @@ public interface EndpointPolicyRepository extends JpaRepository<EndpointPolicy, 
     @Modifying
     @Query("DELETE FROM EndpointPolicy ep WHERE ep.endpoint.id = :endpointId AND ep.policy.id = :policyId")
     void deleteByEndpointIdAndPolicyId(@Param("endpointId") Long endpointId, @Param("policyId") Long policyId);
+
+    Optional<EndpointPolicy> findTopByOrderByIdDesc();
 }

@@ -1,5 +1,10 @@
-# MT940 file ingestion configuration
-mt940:
+# MT940 file ingestion configurati# JWT Configuration
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+    issuer: ${APP_JWT_ISSUER:user-auth-service}
+    audience: ${APP_JWT_AUDIENCE:payment-services}
+    expiration: ${APP_JWT_EXPIRATION:86400}
   base-dir: mt940/
   inbox-dir: mt940/inbox/
   processing-dir: mt940/processing/
@@ -32,13 +37,7 @@ file:
   upload:
     base-dir: uploads/
 
-# JWT Configuration
-app:
-  jwt:
-    secret: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
-    issuer: user-auth-service
-    audience: payment-services
-    expiration: 86400
+# (duplicate app.jwt removed — consolidated at top of file)
 
 # Auditing toggle
 auditing:
@@ -47,11 +46,12 @@ auditing:
 shared-lib:
   security:
     introspection:
-      api-key: ${INTERNAL_API_KEY:}
+      api-key: ${INTERNAL_API_KEY:4f0d3ac5a91b7fe246d3851c09a2f718f6c8d42704e3b89a1f2d6c7b81e4f0a3}
       api-key-header: X-Internal-Api-Key
   entity-audit:
     enabled: true
 
 auth:
   internal:
+    api-key: ${INTERNAL_API_KEY:4f0d3ac5a91b7fe246d3851c09a2f718f6c8d42704e3b89a1f2d6c7b81e4f0a3}
     api-key-header: X-Internal-Api-Key

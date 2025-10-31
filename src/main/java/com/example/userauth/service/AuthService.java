@@ -3,9 +3,11 @@ package com.example.userauth.service;
 import com.example.userauth.dto.AuthResponse;
 import com.example.userauth.dto.LoginRequest;
 import com.example.userauth.dto.RegisterRequest;
+import com.example.userauth.entity.Role;
 import com.example.userauth.entity.User;
 import com.example.userauth.entity.UserRole;
 import com.example.userauth.repository.UserRepository;
+import com.example.userauth.repository.RoleRepository;
 import com.example.userauth.security.JwtUtils;
 import com.example.userauth.dao.UserQueryDao;
 import org.slf4j.Logger;
@@ -23,9 +25,15 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDateTime;
 import java.time.Instant;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -38,6 +46,9 @@ public class AuthService {
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private RoleRepository roleRepository;
     
     @Autowired
     private UserQueryDao userQueryDao;
@@ -132,11 +143,6 @@ public class AuthService {
             registerRequest.getRole() != null ? registerRequest.getRole() : UserRole.WORKER
         );
 
-        Long nextId = userRepository.findTopByOrderByIdDesc()
-                .map(existing -> existing.getId() + 1)
-                .orElse(1L);
-        user.setId(nextId);
-
         userRepository.save(user);
         
         logger.info("User {} registered successfully", user.getUsername());
@@ -188,9 +194,25 @@ public class AuthService {
     @Transactional(readOnly = true)
     public List<User> getUsersByRoleName(String roleName) {
         logger.debug("Fetching users by role name: {} using query DAO", roleName);
-        // This needs a role lookup first, but we'll implement a simple version
-        // In a real scenario, you'd get the role ID first then find users
-        return userQueryDao.findAll(); // Placeholder - needs proper implementation
+        if (!StringUtils.hasText(roleName)) {
+            return List.of();
+        }
+
+        Map<Long, User> usersById = new LinkedHashMap<>();
+
+        String normalized = roleName.trim();
+        try {
+            UserRole legacyRole = UserRole.valueOf(normalized.toUpperCase(Locale.ROOT));
+            userQueryDao.findByRole(legacyRole)
+                    .forEach(user -> usersById.put(user.getId(), user));
+        } catch (IllegalArgumentException ignored) {
+            // Role name does not map to legacy enum; continue with capability-based lookup
+        }
+
+        userQueryDao.findByRoleName(normalized)
+                .forEach(user -> usersById.put(user.getId(), user));
+
+        return List.copyOf(usersById.values());
     }
     
     @Transactional(readOnly = true)
@@ -230,6 +252,93 @@ public class AuthService {
         
         logger.info("User {} permissions updated", user.getUsername());
     }
+
+    public RoleUpdateResult updateUserRoles(Long userId, Set<Long> roleIds) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Set<Long> requestedRoleIds = roleIds == null
+            ? Set.of()
+            : roleIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        List<Role> requestedRoles = requestedRoleIds.isEmpty()
+            ? List.of()
+            : roleRepository.findAllById(requestedRoleIds);
+
+        if (requestedRoles.size() != requestedRoleIds.size()) {
+            Set<Long> foundIds = requestedRoles.stream()
+                    .map(Role::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Set<Long> missing = requestedRoleIds.stream()
+                    .filter(id -> !foundIds.contains(id))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            throw new IllegalArgumentException("Unknown role id(s): " + missing);
+        }
+
+        Set<Long> currentRoleIds = user.getRoles().stream()
+                .map(Role::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        boolean changed = false;
+
+        for (Role existingRole : Set.copyOf(user.getRoles())) {
+            if (!requestedRoleIds.contains(existingRole.getId())) {
+                user.removeRole(existingRole);
+                changed = true;
+            }
+        }
+
+        for (Role role : requestedRoles) {
+            if (!currentRoleIds.contains(role.getId())) {
+                user.addRole(role);
+                changed = true;
+            }
+        }
+
+        resolvePrimaryRole(requestedRoles).ifPresent(user::setRole);
+
+        if (changed) {
+            userRepository.save(user);
+            logger.info("User {} roles updated to {}", user.getUsername(),
+                    user.getRoles().stream()
+                            .map(Role::getName)
+                            .filter(Objects::nonNull)
+                            .toList());
+        } else {
+            logger.info("User {} roles unchanged", user.getUsername());
+        }
+
+        Set<Long> assignedIds = user.getRoles().stream()
+                .map(Role::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        Set<String> assignedNames = user.getRoles().stream()
+                .map(Role::getName)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        return new RoleUpdateResult(assignedIds, assignedNames);
+    }
+
+    private Optional<UserRole> resolvePrimaryRole(List<Role> roles) {
+        for (Role role : roles) {
+            String name = role.getName();
+            if (name == null) {
+                continue;
+            }
+            try {
+                return Optional.of(UserRole.valueOf(name));
+            } catch (IllegalArgumentException ignored) {
+                // Role name does not map to legacy enum
+            }
+        }
+        return Optional.empty();
+    }
     
     /**
      * Get current user's permission names from authentication context
@@ -268,4 +377,6 @@ public class AuthService {
         
         return roles;
     }
+
+    public record RoleUpdateResult(Set<Long> roleIds, Set<String> roleNames) {}
 }

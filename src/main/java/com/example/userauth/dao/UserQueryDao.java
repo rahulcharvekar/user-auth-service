@@ -85,6 +85,19 @@ public class UserQueryDao {
             """;
         return jdbcTemplate.query(sql, new UserRowMapper(), roleId);
     }
+
+    public List<User> findByRoleName(String roleName) {
+        String sql = """
+            SELECT u.id, u.username, u.email, u.full_name, u.role, u.is_enabled,
+                   u.created_at, u.updated_at, u.last_login
+            FROM users u
+            INNER JOIN user_roles ur ON u.id = ur.user_id
+            INNER JOIN roles r ON ur.role_id = r.id
+            WHERE LOWER(r.name) = LOWER(?)
+            ORDER BY u.username
+            """;
+        return jdbcTemplate.query(sql, new UserRowMapper(), roleName);
+    }
     
     public List<User> findUsersWithMultipleRoles() {
         String sql = """

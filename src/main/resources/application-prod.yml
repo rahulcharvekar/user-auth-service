@@ -113,3 +113,8 @@ server:
     connection-timeout: 20000
     max-http-form-post-size: 200MB
   forward-headers-strategy: framework  # For Azure Container Apps load balancer
+
+auth:
+  internal:
+    api-key: ${INTERNAL_API_KEY:}
+    api-key-header: X-Internal-Api-Key

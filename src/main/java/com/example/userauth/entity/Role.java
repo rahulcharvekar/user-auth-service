@@ -50,6 +50,12 @@ public class Role extends AbstractAuditableEntity<Long> {
     @JsonIgnore // prevent infinite recursion during serialization
     private Set<User> users = new HashSet<>();
     
+    @Transient
+    private Set<String> capabilityNames = new HashSet<>();
+
+    @Transient
+    private Set<String> policyNames = new HashSet<>();
+
     // Constructors
     public Role() {
         this.isActive = true;
@@ -116,6 +122,22 @@ public class Role extends AbstractAuditableEntity<Long> {
     
     public void setUsers(Set<User> users) {
         this.users = users;
+    }
+
+    public Set<String> getCapabilityNames() {
+        return capabilityNames;
+    }
+
+    public void setCapabilityNames(Set<String> capabilityNames) {
+        this.capabilityNames = capabilityNames != null ? capabilityNames : new HashSet<>();
+    }
+
+    public Set<String> getPolicyNames() {
+        return policyNames;
+    }
+
+    public void setPolicyNames(Set<String> policyNames) {
+        this.policyNames = policyNames != null ? policyNames : new HashSet<>();
     }
     
     // Helper methods

@@ -3,6 +3,8 @@ package com.example.userauth.service;
 import com.example.userauth.dao.RoleQueryDao;
 import com.example.userauth.entity.Role;
 import com.example.userauth.entity.User;
+import com.example.userauth.repository.CapabilityRepository;
+import com.example.userauth.repository.PolicyRepository;
 import com.example.userauth.repository.RoleRepository;
 import com.example.userauth.repository.UserRepository;
 import org.slf4j.Logger;
@@ -11,9 +13,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -33,12 +38,31 @@ public class RoleService {
     
     @Autowired
     private RoleQueryDao roleQueryDao;
+
+    @Autowired
+    private CapabilityRepository capabilityRepository;
+
+    @Autowired
+    private PolicyRepository policyRepository;
         
     // READ OPERATIONS - Using Query DAO
     @Transactional(readOnly = true)
     public List<Role> getAllRoles() {
         logger.debug("Fetching all roles using query DAO");
-        return roleQueryDao.findAll();
+        List<Role> roles = roleQueryDao.findAll();
+
+        for (Role role : roles) {
+            Set<String> capabilities = new LinkedHashSet<>(
+                    capabilityRepository.findCapabilityNamesByRoleName(role.getName()));
+            role.setCapabilityNames(capabilities);
+
+            Set<String> policies = policyRepository.findRBACPoliciesByRole(role.getName()).stream()
+                    .map(policy -> policy.getName())
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            role.setPolicyNames(policies);
+        }
+
+        return roles;
     }
     
     @Transactional(readOnly = true)
@@ -188,8 +212,21 @@ public class RoleService {
     }
 
     public Optional<Role> getRoleByNameWithPermissions(String name) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'getRoleByNameWithPermissions'");
+        Optional<Role> roleOpt = roleRepository.findByName(name);
+        if (roleOpt.isEmpty()) {
+            return roleOpt;
+        }
+
+        Role role = roleOpt.get();
+        Set<String> capabilities = new LinkedHashSet<>(capabilityRepository.findCapabilityNamesByRoleName(role.getName()));
+        role.setCapabilityNames(capabilities);
+
+        Set<String> policyNames = policyRepository.findRBACPoliciesByRole(role.getName()).stream()
+                .map(policy -> policy.getName())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        role.setPolicyNames(policyNames);
+
+        return Optional.of(role);
     }
 
 }

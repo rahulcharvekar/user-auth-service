@@ -69,6 +69,15 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
            "WHERE pc.policy.id = :policyId " +
            "AND c.isActive = true")
     List<String> findCapabilityNamesByPolicyId(@Param("policyId") Long policyId);
+
+    /**
+     * Fetch capability names for a collection of policy ids in a single query.
+     */
+    @Query("SELECT pc.policy.id AS policyId, c.name AS capabilityName FROM PolicyCapability pc " +
+           "JOIN pc.capability c " +
+           "WHERE pc.policy.id IN :policyIds " +
+           "AND c.isActive = true")
+    List<PolicyCapabilitySummary> findCapabilityNamesByPolicyIds(@Param("policyIds") Iterable<Long> policyIds);
     
     /**
      * Find policies linked to a specific endpoint
@@ -80,4 +89,9 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
     List<Policy> findByEndpointId(@Param("endpointId") Long endpointId);
 
     Optional<Policy> findTopByOrderByIdDesc();
+
+    interface PolicyCapabilitySummary {
+        Long getPolicyId();
+        String getCapabilityName();
+    }
 }

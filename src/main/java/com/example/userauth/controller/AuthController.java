@@ -216,10 +216,12 @@ public class AuthController {
         @Parameter(description = "User ID") @PathVariable Long userId,
         @Parameter(description = "Role IDs") @RequestBody java.util.Set<Long> roleIds) {
         try {
-            authService.updateUserPermissions(userId);
+            AuthService.RoleUpdateResult result = authService.updateUserRoles(userId, roleIds);
             return ResponseEntity.ok(Map.of(
-                "message", "User roles updated successfully. All existing tokens have been invalidated.",
-                "userId", userId
+                "message", "User roles updated successfully.",
+                "userId", userId,
+                "roleIds", result.roleIds(),
+                "roleNames", result.roleNames()
             ));
         } catch (Exception e) {
             logger.error("Failed to update user roles", e);

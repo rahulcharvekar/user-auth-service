@@ -23,6 +23,7 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -30,6 +31,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -83,6 +86,13 @@ public class AuthorizationService {
     private final UIPageRepository uiPageRepository;
     private final PageActionRepository pageActionRepository;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
+
+    private static final long ENDPOINT_CACHE_TTL_MS = 30_000L;
+    private static final long POLICY_CAPABILITIES_CACHE_TTL_MS = 30_000L;
+
+    private final Map<String, List<EndpointDescriptor>> endpointCache = new ConcurrentHashMap<>();
+    private final AtomicLong endpointCacheLoadedAt = new AtomicLong(0);
+    private final Map<Long, CapabilitiesCacheEntry> policyCapabilitiesCache = new ConcurrentHashMap<>();
 
     public AuthorizationService(
             UserRepository userRepository,
@@ -163,44 +173,40 @@ public class AuthorizationService {
         String normalizedMethod = httpMethod != null ? httpMethod.toUpperCase(Locale.ROOT) : "GET";
         String normalizedPath = normalizePath(requestPath);
 
-        Optional<Endpoint> endpointOpt = findMatchingEndpoint(normalizedMethod, normalizedPath);
+        Optional<EndpointDescriptor> endpointOpt = findMatchingEndpoint(normalizedMethod, normalizedPath);
         if (endpointOpt.isEmpty()) {
             logger.debug("No endpoint catalog match for method={} path={}", normalizedMethod, normalizedPath);
             return new EndpointAuthorizationMetadata(false, null, false, Set.of(), Set.of());
         }
 
-        Endpoint endpoint = endpointOpt.get();
-        if (!Boolean.TRUE.equals(endpoint.getIsActive())) {
-            logger.debug("Endpoint {} is inactive, denying by default", endpoint.getId());
-            return new EndpointAuthorizationMetadata(true, endpoint.getId(), false, Set.of(), Set.of());
+        EndpointDescriptor endpoint = endpointOpt.get();
+        if (!endpoint.active()) {
+            logger.debug("Endpoint {} is inactive, denying by default", endpoint.id());
+            return new EndpointAuthorizationMetadata(true, endpoint.id(), false, Set.of(), Set.of());
         }
 
-        Set<Long> policyIds = endpointPolicyRepository.findByEndpointId(endpoint.getId()).stream()
+        Set<Long> policyIds = endpointPolicyRepository.findByEndpointId(endpoint.id()).stream()
                 .map(ep -> ep.getPolicy() != null ? ep.getPolicy().getId() : null)
                 .filter(id -> id != null)
                 .collect(Collectors.toSet());
 
         if (policyIds.isEmpty()) {
-            logger.debug("Endpoint {} has no policies linked", endpoint.getId());
-            return new EndpointAuthorizationMetadata(true, endpoint.getId(), false, Set.of(), Set.of());
+            logger.debug("Endpoint {} has no policies linked", endpoint.id());
+            return new EndpointAuthorizationMetadata(true, endpoint.id(), false, Set.of(), Set.of());
         }
 
-        Set<String> capabilities = new HashSet<>();
-        for (Long policyId : policyIds) {
-            List<String> capabilityNames = policyRepository.findCapabilityNamesByPolicyId(policyId);
-            capabilities.addAll(capabilityNames);
-        }
+        Set<String> capabilities = resolveCapabilities(policyIds);
 
-        return new EndpointAuthorizationMetadata(true, endpoint.getId(), true, policyIds, capabilities);
+        return new EndpointAuthorizationMetadata(true, endpoint.id(), true, policyIds, capabilities);
     }
 
-    private Optional<Endpoint> findMatchingEndpoint(String method, String normalizedPath) {
-        List<Endpoint> candidates = endpointRepository.findByMethod(method);
-        for (Endpoint endpoint : candidates) {
-            if (!Boolean.TRUE.equals(endpoint.getIsActive())) {
+    private Optional<EndpointDescriptor> findMatchingEndpoint(String method, String normalizedPath) {
+        List<EndpointDescriptor> candidates = getEndpointsForMethod(method);
+        for (EndpointDescriptor endpoint : candidates) {
+            if (!endpoint.active()) {
                 continue;
             }
-            String endpointPath = normalizePath(endpoint.getPath());
+            String endpointPath = normalizePath(endpoint.path());
             if (pathMatcher.match(endpointPath, normalizedPath)) {
                 return Optional.of(endpoint);
             }
@@ -213,13 +219,93 @@ public class AuthorizationService {
         return Optional.empty();
     }
 
-    private List<String> buildCompositePaths(Endpoint endpoint, String normalizedEndpointPath) {
-        if (!StringUtils.hasText(endpoint.getService())) {
+    private List<EndpointDescriptor> getEndpointsForMethod(String method) {
+        long now = System.currentTimeMillis();
+        if (now - endpointCacheLoadedAt.get() >= ENDPOINT_CACHE_TTL_MS) {
+            endpointCache.clear();
+            endpointCacheLoadedAt.set(now);
+        }
+        return endpointCache.computeIfAbsent(method, this::loadEndpointsForMethod);
+    }
+
+    private List<EndpointDescriptor> loadEndpointsForMethod(String method) {
+        return endpointRepository.findByMethod(method).stream()
+                .map(endpoint -> new EndpointDescriptor(
+                        endpoint.getId(),
+                        endpoint.getPath(),
+                        endpoint.getService(),
+                        endpoint.getVersion(),
+                        Boolean.TRUE.equals(endpoint.getIsActive())))
+                .collect(Collectors.toList());
+    }
+
+    private Set<String> resolveCapabilities(Set<Long> policyIds) {
+        if (policyIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        long now = System.currentTimeMillis();
+        Set<String> aggregated = new HashSet<>();
+        Set<Long> missing = new HashSet<>();
+
+        for (Long policyId : policyIds) {
+            CapabilitiesCacheEntry cached = policyCapabilitiesCache.get(policyId);
+            if (cached != null && !cached.isStale(now)) {
+                aggregated.addAll(cached.capabilities());
+            } else {
+                if (cached != null) {
+                    policyCapabilitiesCache.remove(policyId);
+                }
+                missing.add(policyId);
+            }
+        }
+
+        if (!missing.isEmpty()) {
+            Map<Long, Set<String>> fetched = fetchCapabilities(missing);
+            for (Map.Entry<Long, Set<String>> entry : fetched.entrySet()) {
+                Set<String> caps = entry.getValue();
+                policyCapabilitiesCache.put(entry.getKey(), new CapabilitiesCacheEntry(Set.copyOf(caps), now));
+                aggregated.addAll(caps);
+            }
+        }
+
+        return aggregated;
+    }
+
+    private Map<Long, Set<String>> fetchCapabilities(Set<Long> policyIds) {
+        if (policyIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, Set<String>> result = new HashMap<>();
+        List<PolicyRepository.PolicyCapabilitySummary> rows =
+                policyRepository.findCapabilityNamesByPolicyIds(policyIds);
+        for (PolicyRepository.PolicyCapabilitySummary row : rows) {
+            result.computeIfAbsent(row.getPolicyId(), ignored -> new HashSet<>())
+                  .add(row.getCapabilityName());
+        }
+
+        for (Long policyId : policyIds) {
+            result.computeIfAbsent(policyId, ignored -> Collections.emptySet());
+        }
+        return result;
+    }
+
+    private record EndpointDescriptor(Long id, String path, String service, String version, boolean active) {
+    }
+
+    private record CapabilitiesCacheEntry(Set<String> capabilities, long loadedAt) {
+        boolean isStale(long now) {
+            return now - loadedAt > POLICY_CAPABILITIES_CACHE_TTL_MS;
+        }
+    }
+
+    private List<String> buildCompositePaths(EndpointDescriptor endpoint, String normalizedEndpointPath) {
+        if (!StringUtils.hasText(endpoint.service())) {
             return List.of();
         }
 
-        String serviceSegment = trimSlashes(endpoint.getService());
-        String versionSegment = trimSlashes(endpoint.getVersion());
+        String serviceSegment = trimSlashes(endpoint.service());
+        String versionSegment = trimSlashes(endpoint.version());
 
         String suffix = normalizedEndpointPath.startsWith("/")
                 ? normalizedEndpointPath

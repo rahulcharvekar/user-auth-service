@@ -39,6 +39,9 @@ public class EnhancedSecurityConfig {
     @Autowired
     private DynamicEndpointAuthorizationManager dynamicEndpointAuthorizationManager;
 
+    @Autowired
+    private InternalApiAuthenticationFilter internalApiAuthenticationFilter;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -59,12 +62,8 @@ public class EnhancedSecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/register", "/api/auth/logout").permitAll()
                 .requestMatchers("/api/auth/**").access(dynamicEndpointAuthorizationManager)
                 .requestMatchers("/api/public/**").permitAll()
-                .requestMatchers("/internal/auth/**").permitAll()
-                .requestMatchers("/internal/authz/**").permitAll()
+                .requestMatchers("/internal/auth/**", "/internal/authz/**").authenticated()
 
-                // Temporarily allow admin/roles endpoints without authentication for testing
-                .requestMatchers("/api/admin/roles/**").permitAll()
-                
                 // Swagger/OpenAPI endpoints
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
                 
@@ -86,6 +85,7 @@ public class EnhancedSecurityConfig {
 
         // Add security headers filter
         http.addFilterBefore(securityHeadersFilter, AuthTokenFilter.class);
+        http.addFilterBefore(internalApiAuthenticationFilter, AuthTokenFilter.class);
 
         return http.build();
     }

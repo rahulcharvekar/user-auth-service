@@ -16,6 +16,8 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     
     @Query("SELECT r FROM Role r WHERE r.name IN :names")
     List<Role> findByNames(@Param("names") List<String> names);
+
+    Optional<Role> findByName(String name);
     
     // Keep for write operation validations
     boolean existsByName(String name);

@@ -42,3 +42,8 @@ auditing:
 
 server:
   port: ${SERVER_PORT:8080}
+
+auth:
+  internal:
+    api-key: ${INTERNAL_API_KEY:}
+    api-key-header: X-Internal-Api-Key

@@ -26,6 +26,135 @@ In simple terms:
 - Roles are linked to policies that define what they can do.
 - When a user tries to access something, the system checks if their roles allow it.
 
+## Project Structure
+
+This auth-service is a Spring Boot application built with Maven. Here's the key layout:
+
+```
+auth-service/
+├── Dockerfile              # For containerizing the app
+├── pom.xml                 # Maven configuration
+├── src/
+│   ├── main/
+│   │   ├── java/com/example/userauth/
+│   │   │   ├── UserAuthServiceApplication.java  # Main app class
+│   │   │   ├── config/      # Configuration classes
+│   │   │   ├── controller/  # REST API endpoints
+│   │   │   ├── dao/         # Data Access Objects
+│   │   │   ├── dto/         # Data Transfer Objects
+│   │   │   ├── entity/      # JPA Entities (database models)
+│   │   │   ├── repository/  # Spring Data Repositories
+│   │   │   ├── security/    # Security configurations and filters
+│   │   │   └── service/     # Business logic services
+│   │   └── resources/       # Application properties and migrations
+│   └── test/                # Unit tests
+├── docs/                   # Documentation
+└── target/                 # Build output
+```
+
+## Prerequisites & Environment
+- **Java/Spring** – The service targets Java 17 with Spring Boot 3.2 (`pom.xml:8-37`). Build and run with Maven (`mvn spring-boot:run`) once dependencies are installed.
+- **Database** – Configure a MySQL schema (default `user_auth_db`) or compatible datasource in `src/main/resources/application-dev.yml:3-25`. RBAC entities rely on JPA/Hibernate with `ddl-auto` typically set to `none` for managed migrations.
+- **JWT Secrets** – Supply secure values for `app.jwt.*` in `application.yml:24-41`; these drive token signing and validation.
+
+## RBAC Data Model
+
+RBAC uses several database tables to store information about users, roles, permissions, etc. Think of it like this:
+
+- **Users**: People who use the system.
+- **Roles**: Groups like "Admin" or "Manager" that users can have.
+- **Capabilities**: Specific actions, like "read reports" or "create user".
+- **Policies**: Rules that say which roles can do which capabilities on which endpoints.
+- **Endpoints**: API URLs that need protection.
+- **UI Pages/Actions**: Front-end elements that also need permission checks.
+
+Here's how they relate:
+
+```mermaid
+erDiagram
+    USER ||--o{ USER_ROLE_ASSIGNMENT : has
+    ROLE ||--o{ USER_ROLE_ASSIGNMENT : assigned_to
+    POLICY ||--o{ POLICY_CAPABILITY : contains
+    CAPABILITY ||--o{ POLICY_CAPABILITY : part_of
+    POLICY ||--o{ ENDPOINT_POLICY : protects
+    ENDPOINT ||--o{ ENDPOINT_POLICY : protected_by
+    POLICY ||--o{ UI_PAGE_POLICY : controls
+    UI_PAGE ||--o{ UI_PAGE_POLICY : controlled_by
+    UI_PAGE ||--o{ PAGE_ACTION : has
+    PAGE_ACTION ||--o{ CAPABILITY : linked_to
+    USER {
+        Long id
+        String username
+        String email
+        int permissionVersion
+    }
+    ROLE {
+        Long id
+        String name
+        String description
+    }
+    CAPABILITY {
+        Long id
+        String name
+        String module
+        String action
+        String resource
+    }
+    POLICY {
+        Long id
+        String name
+        String expression
+    }
+    ENDPOINT {
+        Long id
+        String method
+        String path
+        String service
+    }
+    UI_PAGE {
+        Long id
+        String name
+        String path
+    }
+    PAGE_ACTION {
+        Long id
+        String name
+        Long uiPageId
+        Long capabilityId
+    }
+    USER_ROLE_ASSIGNMENT {
+        Long userId
+        Long roleId
+    }
+    POLICY_CAPABILITY {
+        Long policyId
+        Long capabilityId
+    }
+    ENDPOINT_POLICY {
+        Long endpointId
+        Long policyId
+    }
+    UI_PAGE_POLICY {
+        Long uiPageId
+        Long policyId
+    }
+    REVOKED_TOKEN {
+        String tokenId
+        Date expiryDate
+    }
+```
+
+Review the entity classes in `src/main/java/com/example/userauth/entity/`:
+- `User.java`: Stores user info and a `permissionVersion` that changes when roles are updated.
+- `Role.java`: Defines roles like "ADMIN".
+- `Capability.java`: Fine-grained permissions (e.g., `identity.user.create`).
+- `Policy.java`: Groups capabilities and specifies which roles can access them.
+- `Endpoint.java`: API endpoints to protect.
+- `UIPage.java` and `PageAction.java`: For UI permissions.
+- `RevokedToken.java`: For logout/invalidation.
+
+Make sure your database has tables matching these entities. Use migrations in `src/main/resources/db/migration/`.
+
 ## RBAC Design Rules for This Project
 
 ```mermaid
@@ -294,41 +423,23 @@ Content-Type: application/json
 _Replace each capability placeholder with the real IDs returned by the capability creation calls._
 
 #### Step 5: Link Policy to Endpoints
+Use the bulk assignment API from `EndpointController.bulkAssignPolicyToEndpoints` to bind one policy to many endpoints in a single request.
 ```bash
-# Link admin policy to user creation endpoint
-POST /api/admin/endpoints/{endpoint-id-for-create-user}/policies
+POST /api/admin/endpoints/bulk-policy-assignment
 Content-Type: application/json
 
 {
-  "policyId": "<id:Admin Full Access Policy>"
-}
-
-# Link admin policy to payment read endpoint
-POST /api/admin/endpoints/{endpoint-id-for-payment-read}/policies
-Content-Type: application/json
-
-{
-  "policyId": "<id:Admin Full Access Policy>"
-}
-
-# Link admin policy to payment reconciliation endpoint
-POST /api/admin/endpoints/{endpoint-id-for-payment-reconcile}/policies
-Content-Type: application/json
-
-{
-  "policyId": "<id:Admin Full Access Policy>"
-}
-
-# Link admin policy to reports endpoint
-POST /api/admin/endpoints/{endpoint-id-for-reports}/policies
-Content-Type: application/json
-
-{
-  "policyId": "<id:Admin Full Access Policy>"
+  "policyId": "<id:Admin Full Access Policy>",
+  "endpointIds": [
+    "<id:/api/users POST>",
+    "<id:/api/payments GET>",
+    "<id:/api/payments/reconcile POST>",
+    "<id:/api/reports GET>"
+  ]
 }
 ```
 
-_Replace the endpoint placeholders with the IDs returned when you register each endpoint._
+_Populate `endpointIds` with the identifiers returned when you registered each endpoint._
 
 #### Step 6: Create the Admin User
 ```bash
@@ -446,25 +557,21 @@ Content-Type: application/json
 _Replace the capability placeholders with the IDs from the previous step (skip creation calls if these capabilities already exist)._
 
 #### Step 5: Link Policy to Worker Endpoints
+Call the bulk assignment API to attach the worker policy to all relevant endpoints.
 ```bash
-# Link worker policy to payment processing endpoint
-POST /api/admin/endpoints/{endpoint-id-for-payment-reconcile}/policies
+POST /api/admin/endpoints/bulk-policy-assignment
 Content-Type: application/json
 
 {
-  "policyId": "<id:Worker Limited Access Policy>"
-}
-
-# Link worker policy to basic reports endpoint
-POST /api/admin/endpoints/{endpoint-id-for-basic-reports}/policies
-Content-Type: application/json
-
-{
-  "policyId": "<id:Worker Limited Access Policy>"
+  "policyId": "<id:Worker Limited Access Policy>",
+  "endpointIds": [
+    "<id:/api/payments/reconcile POST>",
+    "<id:/api/reports/basic GET>"
+  ]
 }
 ```
 
-_Replace the endpoint placeholders with the IDs returned when you register each worker endpoint._
+_Use the endpoint IDs returned when you registered the worker endpoints._
 
 #### Step 6: Create the Worker User
 ```bash
@@ -517,7 +624,7 @@ Content-Type: application/json
      "password": "WorkerPass456!"
    }
    ```
-   Use the JWT - should work for `/api/payments/process` and `/api/reports/basic`, but fail for `/api/users` or `/api/reports`.
+   Use the JWT - should work for `/api/payments/reconcile` and `/api/reports/basic`, but fail for `/api/users` or `/api/reports`.
 
 3. **Check Authorizations:**
    ```bash
@@ -528,134 +635,11 @@ Content-Type: application/json
 
 This step-by-step approach shows exactly how to configure different access levels for different user types.
 
-This is a Spring Boot application built with Maven. Here's the key structure:
+## Implementation Reference
 
-```
-auth-service/
-├── Dockerfile              # For containerizing the app
-├── pom.xml                 # Maven configuration
-├── src/
-│   ├── main/
-│   │   ├── java/com/example/userauth/
-│   │   │   ├── UserAuthServiceApplication.java  # Main app class
-│   │   │   ├── config/      # Configuration classes
-│   │   │   ├── controller/  # REST API endpoints
-│   │   │   ├── dao/         # Data Access Objects
-│   │   │   ├── dto/         # Data Transfer Objects
-│   │   │   ├── entity/      # JPA Entities (database models)
-│   │   │   ├── repository/  # Spring Data Repositories
-│   │   │   ├── security/    # Security configurations and filters
-│   │   │   └── service/     # Business logic services
-│   │   └── resources/       # Application properties and migrations
-│   └── test/                # Unit tests
-├── docs/                   # Documentation
-└── target/                 # Build output
-```
+Use this section as a quick reference while navigating the auth service codebase and wiring RBAC resources.
 
-## 1. Prerequisites & Environment
-- **Java/Spring** – The service targets Java 17 with Spring Boot 3.2 (`pom.xml:8-37`). Build and run with Maven (`mvn spring-boot:run`) once dependencies are installed.
-- **Database** – Configure a MySQL schema (default `user_auth_db`) or compatible datasource in `src/main/resources/application-dev.yml:3-25`. RBAC entities rely on JPA/Hibernate with `ddl-auto` typically set to `none` for managed migrations.
-- **JWT Secrets** – Supply secure values for `app.jwt.*` in `application.yml:24-41`; these drive token signing and validation.
-
-## 2. Understand the RBAC Data Model
-
-RBAC uses several database tables to store information about users, roles, permissions, etc. Think of it like this:
-
-- **Users**: People who use the system.
-- **Roles**: Groups like "Admin" or "Manager" that users can have.
-- **Capabilities**: Specific actions, like "read reports" or "create user".
-- **Policies**: Rules that say which roles can do which capabilities on which endpoints.
-- **Endpoints**: API URLs that need protection.
-- **UI Pages/Actions**: Front-end elements that also need permission checks.
-
-Here's how they relate:
-
-```mermaid
-erDiagram
-    USER ||--o{ USER_ROLE_ASSIGNMENT : has
-    ROLE ||--o{ USER_ROLE_ASSIGNMENT : assigned_to
-    POLICY ||--o{ POLICY_CAPABILITY : contains
-    CAPABILITY ||--o{ POLICY_CAPABILITY : part_of
-    POLICY ||--o{ ENDPOINT_POLICY : protects
-    ENDPOINT ||--o{ ENDPOINT_POLICY : protected_by
-    POLICY ||--o{ UI_PAGE_POLICY : controls
-    UI_PAGE ||--o{ UI_PAGE_POLICY : controlled_by
-    UI_PAGE ||--o{ PAGE_ACTION : has
-    PAGE_ACTION ||--o{ CAPABILITY : linked_to
-    USER {
-        Long id
-        String username
-        String email
-        int permissionVersion
-    }
-    ROLE {
-        Long id
-        String name
-        String description
-    }
-    CAPABILITY {
-        Long id
-        String name
-        String module
-        String action
-        String resource
-    }
-    POLICY {
-        Long id
-        String name
-        String expression
-    }
-    ENDPOINT {
-        Long id
-        String method
-        String path
-        String service
-    }
-    UI_PAGE {
-        Long id
-        String name
-        String path
-    }
-    PAGE_ACTION {
-        Long id
-        String name
-        Long uiPageId
-        Long capabilityId
-    }
-    USER_ROLE_ASSIGNMENT {
-        Long userId
-        Long roleId
-    }
-    POLICY_CAPABILITY {
-        Long policyId
-        Long capabilityId
-    }
-    ENDPOINT_POLICY {
-        Long endpointId
-        Long policyId
-    }
-    UI_PAGE_POLICY {
-        Long uiPageId
-        Long policyId
-    }
-    REVOKED_TOKEN {
-        String tokenId
-        Date expiryDate
-    }
-```
-
-Review the entity classes in `src/main/java/com/example/userauth/entity/`:
-- `User.java`: Stores user info and a `permissionVersion` that changes when roles are updated.
-- `Role.java`: Defines roles like "ADMIN".
-- `Capability.java`: Fine-grained permissions (e.g., `identity.user.create`).
-- `Policy.java`: Groups capabilities and specifies which roles can access them.
-- `Endpoint.java`: API endpoints to protect.
-- `UIPage.java` and `PageAction.java`: For UI permissions.
-- `RevokedToken.java`: For logout/invalidation.
-
-Make sure your database has tables matching these entities. Use migrations in `src/main/resources/db/migration/`.
-
-## 3. Persistence Layer (Database Access)
+### Persistence Layer (Database Access)
 
 The repositories in `src/main/java/com/example/userauth/repository/` handle all database operations. They use Spring Data JPA to make database queries easy.
 
@@ -668,7 +652,7 @@ Key repositories:
 
 No special setup needed - Spring Boot auto-configures them. Just ensure your database user can read/write the RBAC tables.
 
-## 4. Seed the Authorization Catalog
+### Seeding the Authorization Catalog
 
 To make RBAC work, you need to populate the database with roles, capabilities, policies, etc. Use the admin APIs in `src/main/java/com/example/userauth/controller/` (under `/api/admin/**`).
 
@@ -682,7 +666,7 @@ flowchart TD
     D --> E[Assign Roles to Users]
 ```
 
-### Step-by-Step:
+#### Step-by-Step
 
 1. **Create Capabilities**  
    POST to `/api/admin/capabilities` (see `CapabilityController.java`).  
@@ -716,7 +700,7 @@ flowchart TD
 
 Start with at least one of each. Empty catalogs will block all access.
 
-## 5. Security Pipeline & JWT Configuration
+### Security Pipeline & JWT Configuration
 
 Security is handled in `src/main/java/com/example/userauth/security/`. Here's how requests are secured:
 
@@ -750,7 +734,7 @@ For method-level security (like `@PreAuthorize`), use `CustomPermissionEvaluator
 
 Ensure the password encoder in `SecurityConfig.java` matches how passwords are stored.
 
-## 6. Authorization Services & Client-Facing APIs
+### Authorization Services & Client-Facing APIs
 
 The business logic for checking permissions is in `src/main/java/com/example/userauth/service/`:
 - `AuthorizationService.java`: Gathers user's roles, capabilities, and UI permissions.
@@ -763,7 +747,7 @@ Clients (like front-end apps) use these APIs:
 
 JWTs include user ID, permission version, and token ID for security.
 
-## 7. Token Invalidation & Caching
+### Token Invalidation & Caching
 
 To keep things secure:
 - When roles change, `AuthService.updateUserPermissions()` bumps the user's `permissionVersion`.
@@ -771,7 +755,7 @@ To keep things secure:
 - Logout adds the token ID to `revoked_tokens` table (`TokenBlacklistService.java`).
 - Responses use ETags for caching (`SecurityHeadersFilter.java`).
 
-## 8. Validation Checklist
+## Validation Checklist
 
 Test that everything works:
 

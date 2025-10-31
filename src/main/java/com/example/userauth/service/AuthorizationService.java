@@ -1,13 +1,35 @@
 package com.example.userauth.service;
 
-import com.example.userauth.entity.*;
-import com.example.userauth.repository.*;
+import com.example.userauth.entity.Endpoint;
+import com.example.userauth.entity.PageAction;
+import com.example.userauth.entity.UIPage;
+import com.example.userauth.entity.User;
+import com.example.userauth.entity.UserRoleAssignment;
+import com.example.userauth.repository.CapabilityRepository;
+import com.example.userauth.repository.EndpointPolicyRepository;
+import com.example.userauth.repository.EndpointRepository;
+import com.example.userauth.repository.PageActionRepository;
+import com.example.userauth.repository.PolicyRepository;
+import com.example.userauth.repository.UIPageRepository;
+import com.example.userauth.repository.UserRepository;
+import com.example.userauth.repository.UserRoleAssignmentRepository;
+import com.example.userauth.service.dto.AuthorizationMatrix;
+import com.example.userauth.service.dto.EndpointAuthorizationMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.AntPathMatcher;
+import org.springframework.util.StringUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -54,9 +76,13 @@ public class AuthorizationService {
 
     private final UserRepository userRepository;
     private final UserRoleAssignmentRepository userRoleRepository;
+    private final PolicyRepository policyRepository;
     private final CapabilityRepository capabilityRepository;
+    private final EndpointRepository endpointRepository;
+    private final EndpointPolicyRepository endpointPolicyRepository;
     private final UIPageRepository uiPageRepository;
     private final PageActionRepository pageActionRepository;
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public AuthorizationService(
             UserRepository userRepository,
@@ -64,11 +90,15 @@ public class AuthorizationService {
             PolicyRepository policyRepository,
             CapabilityRepository capabilityRepository,
             EndpointRepository endpointRepository,
+            EndpointPolicyRepository endpointPolicyRepository,
             UIPageRepository uiPageRepository,
             PageActionRepository pageActionRepository) {
         this.userRepository = userRepository;
         this.userRoleRepository = userRoleRepository;
+        this.policyRepository = policyRepository;
         this.capabilityRepository = capabilityRepository;
+        this.endpointRepository = endpointRepository;
+        this.endpointPolicyRepository = endpointPolicyRepository;
         this.uiPageRepository = uiPageRepository;
         this.pageActionRepository = pageActionRepository;
     }
@@ -86,31 +116,174 @@ public class AuthorizationService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found: " + userId));
 
-        // Get user's roles
-        List<UserRoleAssignment> userRoles = userRoleRepository.findByUserId(userId);
+        AuthorizationMatrix matrix = buildAuthorizationMatrix(user);
+
+        logger.debug("User {} has roles: {}", userId, matrix.getRoles());
+
+        List<Map<String, Object>> pages = getAccessiblePagesFilteredByCapabilities(matrix.getRoles(), matrix.getCapabilities());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("userId", userId);
+        response.put("username", user.getUsername());
+        response.put("roles", matrix.getRoles());
+        response.put("can", buildCapabilityMap(matrix.getCapabilities()));
+        response.put("pages", pages);
+        response.put("version", System.currentTimeMillis());
+
+        logger.debug("Authorization response built successfully for user: {}", userId);
+        return response;
+    }
+
+    /**
+     * Build an authorization matrix for backend enforcement.
+     * This reuses the same logic used for the UI payload.
+     */
+    @Transactional(readOnly = true)
+    public AuthorizationMatrix buildAuthorizationMatrix(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        return buildAuthorizationMatrix(user);
+    }
+
+    private AuthorizationMatrix buildAuthorizationMatrix(User user) {
+        List<UserRoleAssignment> userRoles = userRoleRepository.findByUserId(user.getId());
         Set<String> roleNames = userRoles.stream()
                 .map(ur -> ur.getRole().getName())
                 .collect(Collectors.toSet());
+        Set<String> capabilities = getCapabilitiesForRoles(roleNames);
+        return new AuthorizationMatrix(user.getId(), user.getPermissionVersion(), roleNames, capabilities);
+    }
 
-        logger.debug("User {} has roles: {}", userId, roleNames);
+    /**
+     * Resolve the capability names that guard a specific endpoint definition.
+     * Returns an empty set if the endpoint is not cataloged or has no policies.
+     */
+    @Transactional(readOnly = true)
+    public EndpointAuthorizationMetadata getEndpointAuthorizationMetadata(String httpMethod, String requestPath) {
+        String normalizedMethod = httpMethod != null ? httpMethod.toUpperCase(Locale.ROOT) : "GET";
+        String normalizedPath = normalizePath(requestPath);
 
-    // Get capabilities for user's roles
-    Set<String> capabilities = getCapabilitiesForRoles(roleNames);
+        Optional<Endpoint> endpointOpt = findMatchingEndpoint(normalizedMethod, normalizedPath);
+        if (endpointOpt.isEmpty()) {
+            logger.debug("No endpoint catalog match for method={} path={}", normalizedMethod, normalizedPath);
+            return new EndpointAuthorizationMetadata(false, null, false, Set.of(), Set.of());
+        }
 
-    // Get accessible pages for user's roles, filtered by capabilities
-    List<Map<String, Object>> pages = getAccessiblePagesFilteredByCapabilities(roleNames, capabilities);
+        Endpoint endpoint = endpointOpt.get();
+        if (!Boolean.TRUE.equals(endpoint.getIsActive())) {
+            logger.debug("Endpoint {} is inactive, denying by default", endpoint.getId());
+            return new EndpointAuthorizationMetadata(true, endpoint.getId(), false, Set.of(), Set.of());
+        }
 
-    // Build response (without endpoints)
-    Map<String, Object> response = new HashMap<>();
-    response.put("userId", userId);
-    response.put("username", user.getUsername());
-    response.put("roles", roleNames);
-    response.put("can", buildCapabilityMap(capabilities)); // { "USER_CREATE": true, ...}
-    response.put("pages", pages);
-    response.put("version", System.currentTimeMillis()); // For client-side cache invalidation
+        Set<Long> policyIds = endpointPolicyRepository.findByEndpointId(endpoint.getId()).stream()
+                .map(ep -> ep.getPolicy() != null ? ep.getPolicy().getId() : null)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
 
-    logger.debug("Authorization response built successfully for user: {}", userId);
-    return response;
+        if (policyIds.isEmpty()) {
+            logger.debug("Endpoint {} has no policies linked", endpoint.getId());
+            return new EndpointAuthorizationMetadata(true, endpoint.getId(), false, Set.of(), Set.of());
+        }
+
+        Set<String> capabilities = new HashSet<>();
+        for (Long policyId : policyIds) {
+            List<String> capabilityNames = policyRepository.findCapabilityNamesByPolicyId(policyId);
+            capabilities.addAll(capabilityNames);
+        }
+
+        return new EndpointAuthorizationMetadata(true, endpoint.getId(), true, policyIds, capabilities);
+    }
+
+    private Optional<Endpoint> findMatchingEndpoint(String method, String normalizedPath) {
+        List<Endpoint> candidates = endpointRepository.findByMethod(method);
+        for (Endpoint endpoint : candidates) {
+            if (!Boolean.TRUE.equals(endpoint.getIsActive())) {
+                continue;
+            }
+            String endpointPath = normalizePath(endpoint.getPath());
+            if (pathMatcher.match(endpointPath, normalizedPath)) {
+                return Optional.of(endpoint);
+            }
+            for (String candidate : buildCompositePaths(endpoint, endpointPath)) {
+                if (pathMatcher.match(candidate, normalizedPath)) {
+                    return Optional.of(endpoint);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    private List<String> buildCompositePaths(Endpoint endpoint, String normalizedEndpointPath) {
+        if (!StringUtils.hasText(endpoint.getService())) {
+            return List.of();
+        }
+
+        String serviceSegment = trimSlashes(endpoint.getService());
+        String versionSegment = trimSlashes(endpoint.getVersion());
+
+        String suffix = normalizedEndpointPath.startsWith("/")
+                ? normalizedEndpointPath
+                : "/" + normalizedEndpointPath;
+
+        List<String> candidates = new ArrayList<>();
+
+        // /api/{service}/{version}{path}
+        StringBuilder builder = new StringBuilder("/api/").append(serviceSegment);
+        if (StringUtils.hasText(versionSegment)) {
+            builder.append("/").append(versionSegment);
+        }
+        candidates.add(mergePath(builder.toString(), suffix));
+
+        // /api/{service}{path}
+        candidates.add(mergePath("/api/" + serviceSegment, suffix));
+
+        // Ensure unique values and drop any equal to the original path
+        return candidates.stream()
+                .filter(candidate -> !candidate.equals(normalizedEndpointPath))
+                .distinct()
+                .toList();
+    }
+
+    private String trimSlashes(String value) {
+        if (value == null) {
+            return "";
+        }
+        String result = value;
+        while (result.startsWith("/")) {
+            result = result.substring(1);
+        }
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    private String mergePath(String base, String suffix) {
+        if (base.endsWith("/") && suffix.startsWith("/")) {
+            return base.substring(0, base.length() - 1) + suffix;
+        }
+        if (!base.endsWith("/") && !suffix.startsWith("/")) {
+            return base + "/" + suffix;
+        }
+        return base + suffix;
+    }
+
+    private String normalizePath(String path) {
+        if (path == null || path.isEmpty()) {
+            return "/";
+        }
+        String normalized = path;
+        int queryIndex = normalized.indexOf('?');
+        if (queryIndex >= 0) {
+            normalized = normalized.substring(0, queryIndex);
+        }
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
+        if (normalized.length() > 1 && normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 
     /**

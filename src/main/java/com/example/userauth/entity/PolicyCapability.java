@@ -41,12 +41,11 @@ public class PolicyCapability extends AbstractAuditableEntity<Long> {
 
     // Getters and Setters
     public Long getId() {
-        return id != null ? id : (Long) super.getId();
+        return id;
     }
 
     public void setId(Long id) {
         this.id = id;
-        super.setId(id);
     }
 
     public Policy getPolicy() {

@@ -135,10 +135,11 @@ Let's walk through a concrete example to make RBAC clearer. Imagine a payment re
 - USER: Basic access only
 
 **Capabilities (Actions):**
-- CREATE_USER: Create new users
-- READ_PAYMENT: View payment records
-- RECONCILE_PAYMENT: Process payment reconciliations
-- VIEW_REPORTS: Access financial reports
+- `identity.user.create`: Create new users
+- `reconciliation.payment.read`: View payment records
+- `reconciliation.payment.reconcile`: Process payment reconciliations
+- `reconciliation.report.view`: Access full financial reports
+- `reconciliation.report.view.basic`: Access worker-level summary reports
 
 **Policies:**
 - Admin Policy: Allows ADMIN role to do everything
@@ -183,20 +184,31 @@ POST /api/admin/capabilities
 Content-Type: application/json
 
 {
-  "name": "CREATE_USER",
-  "module": "USER",
+  "name": "identity.user.create",
+  "module": "IDENTITY",
   "action": "CREATE",
   "resource": "USER"
 }
 
-# Create payment management capability
+# Create payment read capability
 POST /api/admin/capabilities
 Content-Type: application/json
 
 {
-  "name": "MANAGE_PAYMENTS",
-  "module": "PAYMENT",
-  "action": "MANAGE",
+  "name": "reconciliation.payment.read",
+  "module": "RECONCILIATION",
+  "action": "READ",
+  "resource": "PAYMENT"
+}
+
+# Create payment reconciliation capability
+POST /api/admin/capabilities
+Content-Type: application/json
+
+{
+  "name": "reconciliation.payment.reconcile",
+  "module": "RECONCILIATION",
+  "action": "RECONCILE",
   "resource": "PAYMENT"
 }
 
@@ -205,10 +217,10 @@ POST /api/admin/capabilities
 Content-Type: application/json
 
 {
-  "name": "VIEW_ALL_REPORTS",
-  "module": "REPORT",
+  "name": "reconciliation.report.view",
+  "module": "RECONCILIATION",
   "action": "VIEW",
-  "resource": "ALL_REPORTS"
+  "resource": "REPORT"
 }
 ```
 
@@ -225,15 +237,26 @@ Content-Type: application/json
   "description": "Create new users"
 }
 
-# Payment management endpoint
+# Payment read endpoint
+POST /api/admin/endpoints
+Content-Type: application/json
+
+{
+  "method": "GET",
+  "path": "/api/payments",
+  "service": "payment-service",
+  "description": "View payment records"
+}
+
+# Payment reconciliation endpoint
 POST /api/admin/endpoints
 Content-Type: application/json
 
 {
   "method": "POST",
-  "path": "/api/payments",
+  "path": "/api/payments/reconcile",
   "service": "payment-service",
-  "description": "Manage payments"
+  "description": "Reconcile payment batches"
 }
 
 # Reports endpoint
@@ -258,37 +281,54 @@ Content-Type: application/json
   "description": "Grants all permissions to administrators",
   "type": "RBAC",
   "expression": "{\"roles\": [\"ADMIN\"]}",
-  "capabilityIds": [1, 2, 3],  # IDs from capabilities created above
+  "capabilityIds": [
+    "<id:identity.user.create>",
+    "<id:reconciliation.payment.read>",
+    "<id:reconciliation.payment.reconcile>",
+    "<id:reconciliation.report.view>"
+  ],
   "isActive": true
 }
 ```
 
+_Replace each capability placeholder with the real IDs returned by the capability creation calls._
+
 #### Step 5: Link Policy to Endpoints
 ```bash
 # Link admin policy to user creation endpoint
-POST /api/admin/endpoints/1/policies
+POST /api/admin/endpoints/{endpoint-id-for-create-user}/policies
 Content-Type: application/json
 
 {
-  "policyId": 1
+  "policyId": "<id:Admin Full Access Policy>"
 }
 
-# Link admin policy to payment management endpoint
-POST /api/admin/endpoints/2/policies
+# Link admin policy to payment read endpoint
+POST /api/admin/endpoints/{endpoint-id-for-payment-read}/policies
 Content-Type: application/json
 
 {
-  "policyId": 1
+  "policyId": "<id:Admin Full Access Policy>"
+}
+
+# Link admin policy to payment reconciliation endpoint
+POST /api/admin/endpoints/{endpoint-id-for-payment-reconcile}/policies
+Content-Type: application/json
+
+{
+  "policyId": "<id:Admin Full Access Policy>"
 }
 
 # Link admin policy to reports endpoint
-POST /api/admin/endpoints/3/policies
+POST /api/admin/endpoints/{endpoint-id-for-reports}/policies
 Content-Type: application/json
 
 {
-  "policyId": 1
+  "policyId": "<id:Admin Full Access Policy>"
 }
 ```
+
+_Replace the endpoint placeholders with the IDs returned when you register each endpoint._
 
 #### Step 6: Create the Admin User
 ```bash
@@ -333,41 +373,42 @@ Content-Type: application/json
 ```
 
 #### Step 2: Create Capabilities for Worker Actions
+If these capabilities were already created for the admin flow, reuse their IDs; otherwise create them now.
 ```bash
-# Payment processing capability
+# Payment reconciliation capability (ensure this exists)
 POST /api/admin/capabilities
 Content-Type: application/json
 
 {
-  "name": "PROCESS_PAYMENTS",
-  "module": "PAYMENT",
-  "action": "PROCESS",
+  "name": "reconciliation.payment.reconcile",
+  "module": "RECONCILIATION",
+  "action": "RECONCILE",
   "resource": "PAYMENT"
 }
 
-# Basic report viewing capability
+# Basic report viewing capability (ensure this exists)
 POST /api/admin/capabilities
 Content-Type: application/json
 
 {
-  "name": "VIEW_BASIC_REPORTS",
-  "module": "REPORT",
+  "name": "reconciliation.report.view.basic",
+  "module": "RECONCILIATION",
   "action": "VIEW",
-  "resource": "BASIC_REPORTS"
+  "resource": "REPORT_BASIC"
 }
 ```
 
 #### Step 3: Register Worker-Specific Endpoints
 ```bash
-# Payment processing endpoint
+# Payment reconciliation endpoint
 POST /api/admin/endpoints
 Content-Type: application/json
 
 {
   "method": "POST",
-  "path": "/api/payments/process",
+  "path": "/api/payments/reconcile",
   "service": "payment-service",
-  "description": "Process individual payments"
+  "description": "Reconcile payment batches"
 }
 
 # Basic reports endpoint
@@ -382,6 +423,8 @@ Content-Type: application/json
 }
 ```
 
+_Skip these registrations if the endpoints already exist; capture their IDs for the policy link step._
+
 #### Step 4: Create Worker Policy
 ```bash
 POST /api/admin/policies
@@ -392,29 +435,36 @@ Content-Type: application/json
   "description": "Grants payment processing and basic report access to workers",
   "type": "RBAC",
   "expression": "{\"roles\": [\"WORKER\"]}",
-  "capabilityIds": [4, 5],  # IDs from worker capabilities
+  "capabilityIds": [
+    "<id:reconciliation.payment.reconcile>",
+    "<id:reconciliation.report.view.basic>"
+  ],
   "isActive": true
 }
 ```
 
+_Replace the capability placeholders with the IDs from the previous step (skip creation calls if these capabilities already exist)._
+
 #### Step 5: Link Policy to Worker Endpoints
 ```bash
 # Link worker policy to payment processing endpoint
-POST /api/admin/endpoints/4/policies
+POST /api/admin/endpoints/{endpoint-id-for-payment-reconcile}/policies
 Content-Type: application/json
 
 {
-  "policyId": 2
+  "policyId": "<id:Worker Limited Access Policy>"
 }
 
 # Link worker policy to basic reports endpoint
-POST /api/admin/endpoints/5/policies
+POST /api/admin/endpoints/{endpoint-id-for-basic-reports}/policies
 Content-Type: application/json
 
 {
-  "policyId": 2
+  "policyId": "<id:Worker Limited Access Policy>"
 }
 ```
+
+_Replace the endpoint placeholders with the IDs returned when you register each worker endpoint._
 
 #### Step 6: Create the Worker User
 ```bash
@@ -597,7 +647,7 @@ erDiagram
 Review the entity classes in `src/main/java/com/example/userauth/entity/`:
 - `User.java`: Stores user info and a `permissionVersion` that changes when roles are updated.
 - `Role.java`: Defines roles like "ADMIN".
-- `Capability.java`: Fine-grained permissions (e.g., "CREATE_USER").
+- `Capability.java`: Fine-grained permissions (e.g., `identity.user.create`).
 - `Policy.java`: Groups capabilities and specifies which roles can access them.
 - `Endpoint.java`: API endpoints to protect.
 - `UIPage.java` and `PageAction.java`: For UI permissions.

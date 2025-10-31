@@ -26,6 +26,100 @@ In simple terms:
 - Roles are linked to policies that define what they can do.
 - When a user tries to access something, the system checks if their roles allow it.
 
+## RBAC Design Rules for This Project
+
+```mermaid
+flowchart LR
+    subgraph UI["Product surface"]
+        A1[UI Action\\n(e.g. View Recon Dashboard)]
+        A2[Endpoint\\n(e.g. GET /api/recon/summary)]
+    end
+    subgraph Catalog["Authorization catalog"]
+        B1[Capability\\n(e.g. reconciliation.dashboard.view)]
+        B2[Policy\\n(e.g. TECHADMIN_ADMIN_POLICY)]
+        B3[Role\\n(e.g. TECH_ADMIN)]
+    end
+    subgraph People["Identity"]
+        C1[User\\n(e.g. Alice)]
+    end
+    A1 --> B1
+    A2 --> B2
+    B1 --> B2
+    B2 --> B3
+    B3 --> C1
+```
+
+**Rule checklist**
+1. **Start with user journeys.** Break every page or API flow into actions the business can reason about; only split into separate capabilities when those actions need different access.
+2. **Name capabilities consistently.** Use `<domain>.<subject>.<action>` (e.g. `reconciliation.payment.approve`) so search, reporting, and UI lookups remain intuitive.
+3. **Bundle capabilities inside policies.** Policies collect the capabilities and extra rules (time windows, data filters) that back-end checks rely on. UI code reads capabilities, while services enforce policies.
+4. **Keep roles business-facing.** Roles map to job titles (TECH_ADMIN, RECON_OFFICER) and reference policies; never hard-code capabilities directly into roles unless there is a compelling exception.
+5. **Cache capability payloads on the client.** Fetch `/api/me/authorizations` once per session and reuse it; even a few hundred capabilities stay under 10 KB, so payload size is not a blocker.
+6. **Version and audit.** When you add, merge, or retire capabilities, bump the permission version so stale tokens can be rejected (implemented via `permissionVersion` in JWTs).
+
+### Example: Tech Admin Console Setup
+
+Follow these steps whenever you introduce a new module or expand the TECH_ADMIN experience.
+
+1. **Identify the flows**  
+   Gather the UI actions for the console (e.g. "View tenant list", "Rotate API key", "Unlock user"). Group the actions that always ship together; keep them under a single capability until product needs finer control.
+
+2. **Create grouped capabilities**  
+   POST to `/api/admin/capabilities` for each action group. Example payloads:
+   ```bash
+   # View-only dashboard widgets
+   POST /api/admin/capabilities
+   {
+     "name": "techadmin.dashboard.view",
+     "module": "TECH_ADMIN",
+     "action": "VIEW",
+     "resource": "DASHBOARD"
+   }
+
+   # Mutations on service settings
+   POST /api/admin/capabilities
+   {
+     "name": "techadmin.service.manage",
+     "module": "TECH_ADMIN",
+     "action": "MANAGE",
+     "resource": "SERVICE_SETTINGS"
+   }
+   ```
+
+3. **Register endpoints and page actions**  
+   - Backend: `/api/admin/endpoints` → map `GET /api/tech-admin/dashboard` to the `techadmin.dashboard.view` capability; map `POST /api/tech-admin/service-settings` to `techadmin.service.manage`.  
+   - Frontend catalog: `/api/admin/page-actions` → link the "Rotate API key" button to `techadmin.service.manage`. This keeps UI show/hide logic aligned with backend enforcement.
+
+4. **Bind capabilities into the policy**  
+   Update or create `TECHADMIN_ADMIN_POLICY` so it references both capabilities. If only one capability existed previously, append the new ones:
+   ```bash
+   PUT /api/admin/policies/{techadmin-policy-id}
+   {
+     "name": "TECHADMIN_ADMIN_POLICY",
+     "expression": "{\"roles\": [\"TECH_ADMIN\"]}",
+     "capabilityIds": [
+       "<id:techadmin.dashboard.view>",
+       "<id:techadmin.service.manage>"
+     ],
+     "endpointIds": [
+       "<id:GET /api/tech-admin/dashboard>",
+       "<id:POST /api/tech-admin/service-settings>"
+     ]
+   }
+   ```
+   Policies stay reusable even if UI grows, and backend endpoints continue to rely on a single policy check.
+
+   _Replace the placeholder IDs with the actual identifiers returned by the capabilities and endpoints APIs._
+
+5. **Curate the role**  
+   Ensure the `TECH_ADMIN` role only references `TECHADMIN_ADMIN_POLICY` (and any other policies the job actually needs). If future product changes require a read-only tech role, create `TECHADMIN_VIEW_POLICY` with just `techadmin.dashboard.view` and assign it to a new role; no need to duplicate users or endpoints.
+
+6. **Assign to users and verify**  
+   - `POST /api/admin/roles/assign` to attach TECH_ADMIN to the correct user IDs.  
+   - Have the user log in, call `/api/me/authorizations`, and confirm the capability map includes both `techadmin.*` entries. UI should now light up only the allowed actions.
+
+By repeating this pattern, you can scale to hundreds of actions without losing control: capabilities stay granular where it matters, policies carry cross-cutting rules, and roles remain readable to stakeholders.
+
 ## RBAC Example
 
 Let's walk through a concrete example to make RBAC clearer. Imagine a payment reconciliation system with these requirements:

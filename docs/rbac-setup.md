@@ -700,6 +700,20 @@ flowchart TD
 
 Start with at least one of each. Empty catalogs will block all access.
 
+### Bootstrap User Seed Script
+
+A ready-made SQL helper (`auth-service/scripts/bootstrap/bootstrap_user_seed.sql`) seeds a temporary platform bootstrap account so you can start catalog configuration immediately after deployment.
+
+- The script creates or refreshes the `PLATFORM_BOOTSTRAP` role and a `platform.bootstrap` user, links them, and maintains the BCrypt password hash (`Platform!Bootstrap1` by default).
+- Run it once against the auth database after schema migrations:  
+  <!-- Legacy MySQL command retained for reference:
+  `mysql -u <user> -p user_auth_db < auth-service/scripts/bootstrap/bootstrap_user_seed.sql`
+  -->
+  `psql postgresql://root:root@localhost:5432/labormanagement -f auth-service/scripts/bootstrap/bootstrap_user_seed.sql`
+- Share the credentials via a secure channel, sign in, and rotate the password on first use. After client admins are provisioned, disable or delete this user.
+- Because rerunning the script bumps the user's `permission_version`, any lingering JWTs get invalidated automatically.
+- The bootstrap policy only grants catalog-management capability and links to the `/api/admin/*` catalog endpoints listed above. It has no UI page bindings, so the account cannot reach business-facing pages unless you explicitly assign additional capabilities.
+
 ### Security Pipeline & JWT Configuration
 
 Security is handled in `src/main/java/com/example/userauth/security/`. Here's how requests are secured:

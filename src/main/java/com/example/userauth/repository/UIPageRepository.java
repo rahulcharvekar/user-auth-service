@@ -75,7 +75,7 @@ public interface UIPageRepository extends JpaRepository<UIPage, Long> {
            "  SELECT c.name FROM Capability c " +
            "  JOIN PolicyCapability pc ON pc.capability.id = c.id " +
            "  JOIN Policy pol ON pol.id = pc.policy.id " +
-           "  WHERE pol.expression LIKE CONCAT('%', :roleName, '%') " +
+           "  WHERE CAST(pol.expression AS string) LIKE CONCAT('%', :roleName, '%') " +
            "  AND pol.isActive = true " +
            "  AND c.isActive = true" +
            ") " +

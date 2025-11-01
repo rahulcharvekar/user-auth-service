@@ -1,10 +1,14 @@
 # Staging environment configuration
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/paymentreconciliation_staging?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${DB_USERNAME:staginguser}
-    password: ${DB_PASSWORD:stagingpassword}
+    # url: ${DB_URL:jdbc:mysql://localhost:3306/paymentreconciliation_staging?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    # driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/labormanagement?currentSchema=auth}
+    driver-class-name: org.postgresql.Driver
+    # username: ${DB_USERNAME:staginguser}
+    # password: ${DB_PASSWORD:stagingpassword}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -16,7 +20,9 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
+        # dialect: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: auth
 
 logging:
   level:

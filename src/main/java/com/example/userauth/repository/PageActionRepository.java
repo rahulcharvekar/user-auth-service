@@ -55,7 +55,7 @@ public interface PageActionRepository extends JpaRepository<PageAction, Long> {
            "  SELECT c.id FROM Capability c " +
            "  JOIN PolicyCapability pc ON pc.capability.id = c.id " +
            "  JOIN Policy p ON p.id = pc.policy.id " +
-           "  WHERE p.expression LIKE CONCAT('%', :roleName, '%') " +
+           "  WHERE CAST(p.expression AS string) LIKE CONCAT('%', :roleName, '%') " +
            "  AND p.isActive = true " +
            "  AND c.isActive = true" +
            ") " +

@@ -47,7 +47,7 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
      */
     @Query("SELECT p FROM Policy p " +
            "WHERE p.type = 'RBAC' " +
-           "AND p.expression LIKE CONCAT('%', :roleName, '%') " +
+           "AND CAST(p.expression AS string) LIKE CONCAT('%', :roleName, '%') " +
            "AND p.isActive = true")
     List<Policy> findRBACPoliciesByRole(@Param("roleName") String roleName);
 

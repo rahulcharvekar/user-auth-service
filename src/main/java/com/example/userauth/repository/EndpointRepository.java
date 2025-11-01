@@ -58,7 +58,7 @@ public interface EndpointRepository extends JpaRepository<Endpoint, Long> {
     @Query("SELECT DISTINCT e FROM Endpoint e " +
            "JOIN EndpointPolicy ep ON ep.endpoint.id = e.id " +
            "JOIN Policy p ON p.id = ep.policy.id " +
-           "WHERE p.expression LIKE CONCAT('%', :roleName, '%') " +
+           "WHERE CAST(p.expression AS string) LIKE CONCAT('%', :roleName, '%') " +
            "AND p.isActive = true " +
            "AND e.isActive = true")
     List<Endpoint> findAccessibleByRole(@Param("roleName") String roleName);

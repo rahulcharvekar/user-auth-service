@@ -1,8 +1,10 @@
 # Production environment configuration for Azure Container Apps with Azure MySQL Flexible Server
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://paymentreconciliation.mysql.database.azure.com:3306/paymentreconciliation_prod?useSSL=true&requireSSL=true&sslMode=REQUIRED&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8&useUnicode=true}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    # url: ${DB_URL:jdbc:mysql://paymentreconciliation.mysql.database.azure.com:3306/paymentreconciliation_prod?useSSL=true&requireSSL=true&sslMode=REQUIRED&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8&useUnicode=true}
+    # driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${DB_URL:jdbc:postgresql://paymentreconciliation-postgres:5432/labormanagement?currentSchema=auth}
+    driver-class-name: org.postgresql.Driver
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     hikari:
@@ -20,7 +22,9 @@ spring:
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
+        # dialect: org.hibernate.dialect.MySQLDialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: auth
         "[format_sql]": false
         jdbc:
           "[batch_size]": 25

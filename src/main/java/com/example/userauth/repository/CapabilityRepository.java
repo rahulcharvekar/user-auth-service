@@ -73,7 +73,7 @@ public interface CapabilityRepository extends JpaRepository<Capability, Long> {
     @Query("SELECT DISTINCT c FROM Capability c " +
            "JOIN PolicyCapability pc ON pc.capability.id = c.id " +
            "JOIN Policy p ON p.id = pc.policy.id " +
-           "WHERE p.expression LIKE CONCAT('%', :roleName, '%') " +
+           "WHERE CAST(p.expression AS string) LIKE CONCAT('%', :roleName, '%') " +
            "AND p.isActive = true " +
            "AND c.isActive = true")
     List<Capability> findByRoleName(@Param("roleName") String roleName);
@@ -84,7 +84,7 @@ public interface CapabilityRepository extends JpaRepository<Capability, Long> {
     @Query("SELECT DISTINCT c.name FROM Capability c " +
            "JOIN PolicyCapability pc ON pc.capability.id = c.id " +
            "JOIN Policy p ON p.id = pc.policy.id " +
-           "WHERE p.expression LIKE CONCAT('%', :roleName, '%') " +
+           "WHERE CAST(p.expression AS string) LIKE CONCAT('%', :roleName, '%') " +
            "AND p.isActive = true " +
            "AND c.isActive = true")
     List<String> findCapabilityNamesByRoleName(@Param("roleName") String roleName);
